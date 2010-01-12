@@ -17,7 +17,7 @@ clean:
 	rm -rf ./test/*.beam
 
 dializer:
-	dialyzer --no_check_plt -I include --src -r src 
+	dialyzer --no_check_plt -I include -r ebin 
 
 docs:
 	erl -noshell -run edoc_run application "'$(APPNAME)'" '"."' "$(DOC_OPTS)" -s init stop
