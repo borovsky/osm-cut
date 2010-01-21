@@ -9,7 +9,13 @@
 
 -export([compile_polygon/2, compile/1]).
 -include("types.hrl").
+-include_lib("kernel/include/file.hrl").
 
+%%--------------------------------------------------------------------
+%% @doc Reads polygon file and creates polygon function
+%% @spec compile_polygon(string(), property_list()) -> polygon_function()
+%% @end
+%%--------------------------------------------------------------------
 -spec(compile_polygon(string(), property_list()) -> polygon_function()).
 compile_polygon(SourceFile, _Options) ->
     {ok, File} = file:open(SourceFile, [read]),
@@ -19,6 +25,12 @@ compile_polygon(SourceFile, _Options) ->
     polygon_compiler:compile(Polygons).
 
 
+%%--------------------------------------------------------------------
+%% @doc Parse polygon file
+%% @spec read_polygons(io_device(), polygon_list()) -> polygon_list()
+%% @end
+%%--------------------------------------------------------------------
+-spec(read_polygons(fd(), polygon_list()) -> polygon_list()).
 read_polygons(File, Polygons) ->
     case io:get_line(File, "") of
         eof ->
@@ -36,17 +48,43 @@ read_polygons(File, Polygons) ->
             end
     end.
 
-read_polygon(File, [{Type, Points} | OtherPolygons] = Polygons) ->
+
+%%--------------------------------------------------------------------
+%% @doc Parse one polygon from file
+%% @spec read_polygon(io_device(), polygon_list()) -> polygon_list()
+%% @end
+%%--------------------------------------------------------------------
+-spec(read_polygon(fd(), polygon_list()) -> polygon_list()).
+read_polygon(File, [{Type, Points} | OtherPolygons]) ->
     case io:get_line(File, "") of
         eof -> erlang:error("Polygon end not found");
         "END" ++ _ ->
-            read_polygons(File, Polygons);
+            read_polygons(File, [{Type, Points} | OtherPolygons]);
         Data ->
             read_polygon(File, [{Type, [parsed_points(Data) | Points]} | OtherPolygons])
-    end
-    .
+    end.
 
+
+%%--------------------------------------------------------------------
+%% @doc Adds last point of polygon to begin of point list (if not added)
+%% @spec extended_polygon_points(list(point())) -> list(point())
+%% @end
+%%--------------------------------------------------------------------
+-spec(extended_polygon_points(list(point())) -> list(point())).
+extended_polygon_points([First | _] = Points) ->
+    Last = lists:last(Points),
+    case Last of
+        First ->
+            Points;
+        _ ->[Last | Points]
+    end.
                      
+%%--------------------------------------------------------------------
+%% @doc Parse points string
+%% @spec parsed_points(string()) -> {float(), float()}
+%% @end
+%%--------------------------------------------------------------------
+-spec(parsed_points(string()) -> {float(), float()}).
 parsed_points(String) ->
     FloatRegexp = "\s*(-?\\d+(\\.?\\d+)?([eE][-+]?\\d+)?)\s*",
     Regexp = ["^", FloatRegexp, "\\s+", FloatRegexp, $$],
@@ -56,7 +94,11 @@ parsed_points(String) ->
             erlang:error("Incorrect point format")
     end.
         
-
+%%--------------------------------------------------------------------
+%% @doc Generates function that if point inside polygons
+%% @spec compile(polygon_list()) -> polygon_function()
+%% @end
+%%--------------------------------------------------------------------
 -spec(compile(polygon_list()) -> polygon_function()).
 compile(Polygons) ->
     IncludePolygons = lists:filter(fun(P) -> element(1, P) == include end, Polygons),
@@ -72,8 +114,15 @@ compile(Polygons) ->
     end.
                                    
     
+%%--------------------------------------------------------------------
+%% @doc Generates function that if point inside one polygon
+%% @spec compile_polygon(polygon_def()) -> polygon_function()
+%% @end
+%%--------------------------------------------------------------------
 -spec(compile_polygon(polygon_def()) -> polygon_function()).
-compile_polygon({_,Points}) ->
+compile_polygon({_,PrePoints}) ->
+    Points = extended_polygon_points(PrePoints),
+    io:format("Compiling polygon: ~p~n", [Points]),
     Xs = lists:map(fun({X, _Y}) -> X end, Points),
     Ys = lists:map(fun({_X, Y}) -> Y end, Points),
     Xmin = lists:min(Xs),
@@ -91,10 +140,20 @@ compile_polygon({_,Points}) ->
             end
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if point is at right side of line described by (A*X + B*Y + C = 0)
+%% @spec at_right_of(interval(), float(), float()) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
 -spec(at_right_of(interval(), float(), float()) -> boolean()).
 at_right_of({A, B, C}, X, Y) ->
     A * X + B * Y + C >= 0.
 
+%%--------------------------------------------------------------------
+%% @doc Converts ordered set of points to list of intervals
+%% @spec points_to_intervals(list(point())) -> list(interval())
+%% @end
+%%--------------------------------------------------------------------
 -spec(points_to_intervals(list(point())) -> list(interval())).
 points_to_intervals(Points) ->
     [Point1, Point2, {X, Y} | _] = Points,
@@ -106,18 +165,32 @@ points_to_intervals(Points) ->
             points_to_intervals_clockwise(lists:reverse(Points))
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Converts ordered set of points to list of intervals (points ordered clockwise)
+%% @spec points_to_intervals_clockwise(list(point())) -> list(interval())
+%% @end
+%%--------------------------------------------------------------------
 -spec(points_to_intervals_clockwise(list(point())) -> list(interval())).
 points_to_intervals_clockwise(Points) ->
-    Points2 = [lists:last(Points) | Points],
-    points_to_intervals_clockwise(Points2, []).
+    points_to_intervals_clockwise(Points, []).
 
+%%--------------------------------------------------------------------
+%% @doc Converts ordered set of points to list of intervals (points ordered clockwise)
+%% @spec points_to_intervals_clockwise(list(point()), list(interval())) -> list(interval())
+%% @end
+%%--------------------------------------------------------------------
 -spec(points_to_intervals_clockwise(list(point()), list(interval())) -> list(interval())).
-points_to_intervals_clockwise([Point], Intervals) ->
+points_to_intervals_clockwise([_Point], Intervals) ->
     Intervals;
 
 points_to_intervals_clockwise([Point1, Point2 | Points], Intervals) ->
     points_to_intervals_clockwise([Point2 | Points], [interval_for(Point1, Point2) | Intervals]).
 
+%%--------------------------------------------------------------------
+%% @doc Creates interval from start and end line points
+%% @spec interval_for(point(), point()) -> interval()
+%% @end
+%%--------------------------------------------------------------------
 -spec(interval_for(point(), point()) -> interval()).
 interval_for({X1, Y1}, {X2, Y2}) ->
     A = Y1 - Y2,

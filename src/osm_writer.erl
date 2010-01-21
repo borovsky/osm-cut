@@ -13,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, ping/0, close/0, write/1]).
+-export([start_link/1, synchronize/0, close/0, write/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -27,12 +27,29 @@
 %%% API
 %%%===================================================================
 
+%%--------------------------------------------------------------------
+%% @doc Close output file
+%% @spec close() -> any()
+%% @end
+%%--------------------------------------------------------------------
+-spec(close() -> any()).
 close() ->
     gen_server:call(?SERVER, close).
 
-ping() ->
+%%--------------------------------------------------------------------
+%% @doc Ping to write server (for avoid message queue overflow)
+%% @spec synchronize() -> any()
+%% @end
+%%--------------------------------------------------------------------
+-spec(synchronize() -> any()).
+synchronize() ->
     gen_server:call(?SERVER, ping).
 
+%%--------------------------------------------------------------------
+%% @doc Writes OSM element to output stream
+%% @spec write(source_element()) -> any()
+%% @end
+%%--------------------------------------------------------------------
 -spec(write(source_element()) -> any()).
 write(endDocument) ->
     gen_server:abcast(?SERVER, endDocument),
@@ -67,6 +84,7 @@ start_link(OutputFile) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
+-spec(init(list(string)) -> {ok, #state{}}).
 init([OutputFile]) ->
     {ok, File} = file:open(OutputFile, [write, raw]),
     io:format("Writing to ~p~n", [OutputFile]), 
@@ -86,6 +104,7 @@ init([OutputFile]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_call(ping | close, pid(), #state{}) -> {reply, pong | ok, #state{}}).
 handle_call(ping, _From, State) ->
     {reply, pong, State};
 
@@ -107,6 +126,7 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_cast(source_element(), #state{}) -> {noreply, #state{}}).
 handle_cast(Msg, #state{out_file = OutFile} = State) ->
     Xml = xml_for_element(Msg),
     file:write(OutFile, Xml),
@@ -122,6 +142,7 @@ handle_cast(Msg, #state{out_file = OutFile} = State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_info(any(), #state{}) -> {noreply, #state{}}).
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -136,6 +157,7 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
+-spec(terminate(any(), #state{}) -> any()).
 terminate(_Reason, _State) ->
     ok.
 
@@ -147,6 +169,7 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
+-spec(code_change(any(), #state{}, any()) -> {ok, #state{}}).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

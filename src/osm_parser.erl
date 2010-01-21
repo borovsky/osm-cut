@@ -7,23 +7,26 @@
 
 -module(osm_parser).
 
--export([parse/1]).
+-export([parse/2]).
 
 -record(event_state, {
           level = -1,
           tag_stack = [],
           children_stack = [],
-          message_count = 0
+          message_count = 0,
+          processor_module
          }).
 
 -include("types.hrl").
 
--spec(parse(string()) -> any()).
-parse(SourceFile) ->
+-spec(parse(string(), property_list()) -> any()).
+parse(SourceFile, Options) ->
+    ProcessorModule = proplists:get_value(processor_module, Options, osm_processor),
     Start = erlang:now(),
 
     {ok, File} = file:open(SourceFile, [read, raw, binary]),
-    erlsom:parse_sax(<<>>, #event_state{}, fun sax_callback/2, [{continuation_function, fun continuation_reader/2, File}]),
+    erlsom:parse_sax(<<>>, #event_state{processor_module = ProcessorModule}, fun sax_callback/2,
+                     [{continuation_function, fun continuation_reader/2, File}]),
     End = erlang:now(),
     io:format("Parse time: ~p~n", [timer:now_diff(End, Start)]).
 
@@ -88,7 +91,7 @@ sax_callback(Event, State) ->
     State.
 
 process_element({osm, _, _} = Element, State) ->
-    send_message(Element),
+    send_message(Element, State#event_state.processor_module),
     State;
 
 process_element({node, Attributes, Children}, State) ->
@@ -96,7 +99,7 @@ process_element({node, Attributes, Children}, State) ->
     Lat = my_list_to_float(proplists:get_value(lat, Attributes)),
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     send_message({node, Id, {Lon, Lat}, strip_attributes(Attributes, [id, lat, lon]),
-                 encoded_tags(Children)}),
+                 encoded_tags(Children)}, State#event_state.processor_module),
     State#event_state{message_count = State#event_state.message_count + 1};
 
 process_element({way, Attributes, Children}, State) ->
@@ -104,7 +107,7 @@ process_element({way, Attributes, Children}, State) ->
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     
     send_message({way, Id, Nodes, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}),
+                 encoded_tags(Tags)}, State#event_state.processor_module),
     State#event_state{message_count = State#event_state.message_count + 1};
 
 process_element({relation, Attributes, Children}, State) ->
@@ -112,20 +115,20 @@ process_element({relation, Attributes, Children}, State) ->
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     
     send_message({relation, Id, Members, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}),
+                 encoded_tags(Tags)}, State#event_state.processor_module),
     State#event_state{message_count = State#event_state.message_count + 1};
 
 process_element(endDocument, State) ->
-    send_message(endDocument),
+    send_message(endDocument, State#event_state.processor_module),
     State;
 
 process_element(Element, State) ->
     io:format("Unprocessed element: ~p~n", [Element]),
     State.
 
--spec(send_message(source_element()) -> any()).
-send_message(Element) ->
-    osm_processor:process(Element).
+-spec(send_message(source_element(), atom()) -> any()).
+send_message(Element, Processor) ->
+    Processor:process(Element).
 
 -spec(classified_way_children(simple_xml_tags()) -> {list(integer()), simple_xml_tags()}).
 classified_way_children(Children) ->

@@ -1,4 +1,4 @@
-APPNAME=steroids
+APPNAME=osm-cut
 DOC_OPTS=[{todo, true},{packages, false}]
 
 

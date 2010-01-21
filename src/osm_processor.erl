@@ -13,27 +13,39 @@
 -include("types.hrl").
 
 %% API
--export([start_link/1, process/1, synchronize/0]).
+-export([start_link/2, process/1, synchronize/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--define(SERVER, ?MODULE). 
+-define(SERVER, ?MODULE).
 
 -record(state, {
-         polygon_function,
-         reduced_set
+          polygon_function,
+          reduced_set,
+          writer_module
          }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
+%%--------------------------------------------------------------------
+%% @doc Processes OSM element
+%% @spec process(source_element()) -> any()
+%% @end
+%%--------------------------------------------------------------------
 -spec(process(source_element()) -> any()).
 process(Node) ->
     gen_server:abcast(?SERVER, Node).
 
+%%--------------------------------------------------------------------
+%% @doc Synchronize processor with parser (for avoid message query overflow)
+%% @spec synchronize() -> any()
+%% @end
+%%--------------------------------------------------------------------
+-spec(synchronize() -> any()).
 synchronize() ->
     gen_server:call(?SERVER, ping).
 
@@ -42,13 +54,13 @@ synchronize() ->
 %% @doc
 %% Starts the server
 %%
-%% @spec start_link(fun((float(), float()) -> boolean())) -> {ok, Pid} | ignore | {error, Error}
+%% @spec start_link(polygon_function(), property_list()) -> tuple() | ignore
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(polygon_function()) -> tuple() | ignore).
-start_link(PolygonFunction) ->
+-spec(start_link(polygon_function(), property_list()) -> tuple() | ignore).
+start_link(PolygonFunction, Options) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE,
-                          [PolygonFunction], []).
+                          [PolygonFunction, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,15 +71,18 @@ start_link(PolygonFunction) ->
 %% @doc
 %% Initiates the server
 %%
-%% @spec init(Args) -> {ok, State} |
+%% @spec init([any()]) -> {ok, #state{}} |
 %%                     {ok, State, Timeout} |
 %%                     ignore |
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init([polygon_function()]) -> {ok, #state{}}).
-init([PolygonFunction]) ->
-    {ok, #state{polygon_function = PolygonFunction, reduced_set = gb_sets:new()}}.
+-spec(init([any()]) -> {ok, #state{}}).
+init([PolygonFunction, Options]) ->
+    WriterModule = proplists:get_value(writer_module, Options, osm_writer),
+    {ok, #state{polygon_function = PolygonFunction,
+                reduced_set = gb_sets:new(),
+                writer_module=WriterModule}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -83,7 +98,9 @@ init([PolygonFunction]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(ping, _From, State) ->
+-spec(handle_call(ping, pid(), #state{}) -> {reply, pong, #state{}}).
+handle_call(ping, _From, #state{writer_module = Writer} = State) ->
+    Writer:synchronize(),
     {reply, pong, State};
 
 handle_call(_Request, _From, State) ->
@@ -100,6 +117,7 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_cast(source_element(), #state{}) -> {noreply, #state{}}).
 handle_cast(Msg, State) ->
     {noreply, process_message(Msg, State)}.
 
@@ -113,6 +131,7 @@ handle_cast(Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_info(any, #state{}) -> {noreply, #state{}}).
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -127,6 +146,7 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
+-spec(terminate(any(), #state{}) -> any()).
 terminate(_Reason, _State) ->
     ok.
 
@@ -138,45 +158,57 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
+-spec(code_change(any(), #state{}, any()) -> {ok, #state{}}).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc Processes OSM message
+%% @spec process_message(source_element(), #state{}) -> #state{}
+%% @end
+%%--------------------------------------------------------------------
 -spec(process_message(source_element(), #state{}) -> #state{}).
-process_message({osm, _Attributes, []} = Element, State) ->
-    osm_writer:write(Element),
+%% start element
+process_message({osm, _Attributes, []} = Element, #state{writer_module=Writer} = State) ->
+    Writer:write(Element),
     State;
 
-process_message(endDocument, State) ->
-    osm_writer:write(endDocument),
+%% end element
+process_message(endDocument, #state{writer_module=Writer} = State) ->
+    Writer:write(endDocument),
     State;
 
+% node element
 process_message({node, Id, {X, Y}, _, _} = Element, #state{polygon_function = PolygonFunction,
-         reduced_set = Set} = State) ->
+         reduced_set = Set, writer_module = Writer} = State) ->
     case PolygonFunction(X, Y) of
         true ->
             NewSet = gb_sets:add({node, Id}, Set),
-            osm_writer:write(Element),
+            Writer:write(Element),
             State#state{reduced_set = NewSet};
         _ ->
             State
-    
+
     end;
 
-process_message({way, Id, Nodes, Attributes, Tags}, #state{reduced_set = Set} = State) ->
+%%way element
+process_message({way, Id, Nodes, Attributes, Tags}, #state{reduced_set = Set, writer_module = Writer} = State) ->
     NodesInPolygon = lists:filter(fun(E) -> gb_sets:is_member({node, E}, Set) end, Nodes),
     case NodesInPolygon of
         [] ->
             State;
         List ->
             NewSet = gb_sets:add({way, Id}, Set),
-            osm_writer:write({way, Id, List, Attributes, Tags}),
+            Writer:write({way, Id, List, Attributes, Tags}),
             State#state{reduced_set = NewSet}
     end;
 
-process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = Set} = State) ->
+%% relation element
+process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = Set, writer_module = Writer} = State) ->
     MembersInPolygon =
         lists:filter(fun({Type, MemberId, _}) ->
                              gb_sets:is_member({Type, MemberId}, Set) end,
@@ -186,10 +218,11 @@ process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = 
             State;
         List ->
             NewSet = gb_sets:add({relation, Id}, Set),
-            osm_writer:write({relation, Id, List, Attributes, Tags}),
+            Writer:write({relation, Id, List, Attributes, Tags}),
             State#state{reduced_set = NewSet}
     end;
 
+%% other element.
 process_message(Msg, State) ->
     io:format("Unhandled message: ~p~n", [Msg]),
     State.
