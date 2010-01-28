@@ -90,7 +90,7 @@ close_tag(Tag, Offset) ->
 %%--------------------------------------------------------------------
 -spec(attributes(attributes()) -> iolist()).
 attributes(Attributes) ->
-    [[" ", atom_to_list(Name), "=\"", xmerl_lib:export_attribute(osm_utils:ant_to_iolist(Value)), $"] ||{Name, Value} <- Attributes].
+    [[" ", atom_to_list(Name), "=\"", xmerl_lib:export_attribute(osm_utils:any_to_iolist(Value)), $"] ||{Name, Value} <- Attributes].
 
 %%--------------------------------------------------------------------
 %% @doc Formats empty XML tag

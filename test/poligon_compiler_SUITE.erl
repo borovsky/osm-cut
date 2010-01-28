@@ -92,7 +92,8 @@ end_per_testcase(_TestCase, _Config) ->
 %%--------------------------------------------------------------------
 all() ->
     [check_bounding_box,
-     check_convex_polygon].
+     check_convex_polygon,
+     check_non_convex_polygon].
 
 %% Test cases starts here.
 %%--------------------------------------------------------------------
@@ -124,5 +125,19 @@ check_convex_polygon(Config) when is_list(Config) ->
     true = Fun(3, 3),
     false = Fun(0, 10),
     false = Fun(3, 7),
+    
+    ok.
+
+check_non_convex_polygon() ->
+    [{doc, "Checks convex poligon"}].
+
+check_non_convex_polygon(Config) when is_list(Config) ->
+    Fun = polygon_compiler:compile([{include, [{-5, 0}, {5, 0}, {-5, 10}, {5, 10}]}]),
+
+    true = Fun(0, 0),
+    true = Fun(0, 5),
+    true = Fun(1, 3),
+    false = Fun(1, 5),
+    false = Fun(10, 7),
     
     ok.

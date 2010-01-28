@@ -97,7 +97,6 @@ start_link(Options) ->
 -spec(init(list(string)) -> {ok, #state{}}).
 init([OutputFile]) ->
     {ok, File} = file:open(OutputFile, [write, raw]),
-    io:format("Writing to ~p~n", [OutputFile]), 
     {ok, #state{out_file = File}}.
 
 %%--------------------------------------------------------------------

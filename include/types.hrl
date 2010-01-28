@@ -13,7 +13,7 @@
 -type(polygon_function() ::fun((float(), float()) -> boolean())).
 
 
--type(interval() :: {float(), float(), float()}).
+-type(interval() :: {{float(), float(), float()}, float(), float()} | {float(), float(), float()}).
 
 -type(property() :: tuple() | atom()).
 -type(property_list() :: list(property())).

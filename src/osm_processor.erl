@@ -223,5 +223,5 @@ process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = 
 
 %% other element.
 process_message(Msg, State) ->
-    io:format("Unhandled message: ~p~n", [Msg]),
+    %io:format("Unhandled message: ~p~n", [Msg]),
     State.

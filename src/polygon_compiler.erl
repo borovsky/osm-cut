@@ -135,9 +135,25 @@ compile_polygon({_,PrePoints}) ->
     fun(X, Y) ->
             if
                 X >= Xmin andalso X =< Xmax andalso Y >= Ymin andalso Y =< Ymax ->
-                    lists:all(fun(Interval) -> at_right_of(Interval, X, Y) end, Intervals);
+                    check_polygons(fun(Interval) ->
+                                      at_right_of(Interval, X, Y)
+                              end, Intervals);
                 true -> false
             end
+    end.
+
+-spec(check_polygons(fun((interval()) -> true | false | on), list(interval())) -> boolean()).
+check_polygons(Func, Polygons) ->
+    check_polygons(Func, Polygons, 0).
+
+check_polygons(_Func, [], Count) ->
+    Count rem 2 == 1;
+
+check_polygons(Func, [Item | Tail], Count) ->
+    case Func(Item) of
+        on -> true;
+        true -> check_polygons(Func, Tail, Count + 1);
+        false -> check_polygons(Func, Tail, Count )
     end.
 
 %%--------------------------------------------------------------------
@@ -145,9 +161,25 @@ compile_polygon({_,PrePoints}) ->
 %% @spec at_right_of(interval(), float(), float()) -> boolean()
 %% @end
 %%--------------------------------------------------------------------
--spec(at_right_of(interval(), float(), float()) -> boolean()).
-at_right_of({A, B, C}, X, Y) ->
-    A * X + B * Y + C >= 0.
+-spec(at_right_of(interval(), float(), float()) -> true | false | on).
+at_right_of({{A, B, C}, Y1, Y2}, X, Y) ->
+    case Y >= Y1 andalso Y =< Y2 of
+        true ->
+            R = A * X + B * Y + C,
+            case R == 0 of
+                true -> on;
+                _ -> Y < Y2 andalso R > 0
+            end;
+        false ->
+            false
+    end;
+
+at_right_of({X1, X2, YI}, X, Y) ->
+    case (Y == YI) andalso (X >= X1) andalso (X =< X2) of
+        true -> on;
+        false -> false
+    end.
+
 
 %%--------------------------------------------------------------------
 %% @doc Converts ordered set of points to list of intervals
@@ -156,35 +188,19 @@ at_right_of({A, B, C}, X, Y) ->
 %%--------------------------------------------------------------------
 -spec(points_to_intervals(list(point())) -> list(interval())).
 points_to_intervals(Points) ->
-    [Point1, Point2, {X, Y} | _] = Points,
-
-    % Is poligon specified clockwise
-    case at_right_of(interval_for(Point1, Point2), X, Y) of
-        true -> points_to_intervals_clockwise(Points);
-        false ->
-            points_to_intervals_clockwise(lists:reverse(Points))
-    end.
+    points_to_intervals(Points, []).
 
 %%--------------------------------------------------------------------
-%% @doc Converts ordered set of points to list of intervals (points ordered clockwise)
-%% @spec points_to_intervals_clockwise(list(point())) -> list(interval())
+%% @doc Converts ordered set of points to list of intervals
+%% @spec points_to_intervals(list(point()), list(interval())) -> list(interval())
 %% @end
 %%--------------------------------------------------------------------
--spec(points_to_intervals_clockwise(list(point())) -> list(interval())).
-points_to_intervals_clockwise(Points) ->
-    points_to_intervals_clockwise(Points, []).
-
-%%--------------------------------------------------------------------
-%% @doc Converts ordered set of points to list of intervals (points ordered clockwise)
-%% @spec points_to_intervals_clockwise(list(point()), list(interval())) -> list(interval())
-%% @end
-%%--------------------------------------------------------------------
--spec(points_to_intervals_clockwise(list(point()), list(interval())) -> list(interval())).
-points_to_intervals_clockwise([_Point], Intervals) ->
+-spec(points_to_intervals(list(point()), list(interval())) -> list(interval())).
+points_to_intervals([_Point], Intervals) ->
     Intervals;
 
-points_to_intervals_clockwise([Point1, Point2 | Points], Intervals) ->
-    points_to_intervals_clockwise([Point2 | Points], [interval_for(Point1, Point2) | Intervals]).
+points_to_intervals([Point1, Point2 | Points], Intervals) ->
+    points_to_intervals([Point2 | Points], [interval_for(Point1, Point2) | Intervals]).
 
 %%--------------------------------------------------------------------
 %% @doc Creates interval from start and end line points
@@ -192,8 +208,17 @@ points_to_intervals_clockwise([Point1, Point2 | Points], Intervals) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(interval_for(point(), point()) -> interval()).
+interval_for({_, Y1} = P1, {_, Y2} = P2) when Y2 < Y1 ->
+    interval_for(P2, P1);
+
+interval_for({X1, Y}, {X2, Y}) ->
+    case X1 < X2 of
+        true -> {X1, X2, Y};
+        false -> {X2, X1, Y}
+    end;
+
 interval_for({X1, Y1}, {X2, Y2}) ->
-    A = Y1 - Y2,
-    B = X2 - X1,
+    A = Y2 - Y1,
+    B = X1 - X2,
     C = -(A * X1 + B * Y1),
-    {A, B, C}.
+    {{A, B, C}, Y1, Y2}.

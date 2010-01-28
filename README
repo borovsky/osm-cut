@@ -1,0 +1,12 @@
+Name: Alexander Borovsky
+Task: geo
+Level: 2
+Language: Erlang
+Work: 9
+Duration: 3
+
+Time Sheet:
+2 weeks of planing and writing prototypes (only simple_xml_writer module used from them)
+4 hours for 1 level (with basic tests)
+4 hours for docs and test
+1 hour - Level 2 polygon generator
