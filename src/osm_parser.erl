@@ -95,8 +95,8 @@ process_element({osm, _, _} = Element, State) ->
     State;
 
 process_element({node, Attributes, Children}, State) ->
-    Lon = my_list_to_float(proplists:get_value(lon, Attributes)),
-    Lat = my_list_to_float(proplists:get_value(lat, Attributes)),
+    Lon = osm_utils:to_float(proplists:get_value(lon, Attributes)),
+    Lat = osm_utils:to_float(proplists:get_value(lat, Attributes)),
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     send_message({node, Id, {Lon, Lat}, strip_attributes(Attributes, [id, lat, lon]),
                  encoded_tags(Children)}, State#event_state.processor_module),
@@ -186,11 +186,3 @@ simple_xml({startElement, _, Tag, _, Attributes}, Children) ->
     {list_to_atom(Tag), % Risky, but fast
      lists:map(fun({attribute, Name, _, _, Value}) -> {list_to_atom(Name), Value} end, Attributes),
      Children}.
-
-my_list_to_float(S) ->
-    try list_to_float(S) of
-        F -> F
-    catch
-        error:badarg ->
-            list_to_integer(S)
-    end.

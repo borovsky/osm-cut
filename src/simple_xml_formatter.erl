@@ -90,22 +90,7 @@ close_tag(Tag, Offset) ->
 %%--------------------------------------------------------------------
 -spec(attributes(attributes()) -> iolist()).
 attributes(Attributes) ->
-    [[" ", atom_to_list(Name), "=\"", xmerl_lib:export_attribute(decode_attribute(Value)), $"] ||{Name, Value} <- Attributes].
-
-%%--------------------------------------------------------------------
-%% @doc Converts attribute value to string
-%% @spec decode_attribute(atom() | integer() | float() | iolist()) -> iolist()
-%% @end
-%%--------------------------------------------------------------------
--spec(decode_attribute(atom() | integer() | float() | iolist()) -> iolist()).
-decode_attribute(A) when is_atom(A) ->
-    atom_to_list(A);
-decode_attribute(A) when is_integer(A) ->
-    integer_to_list(A);
-decode_attribute(A) when is_float(A) ->
-    float_to_list(A);
-decode_attribute(A) ->
-    A.
+    [[" ", atom_to_list(Name), "=\"", xmerl_lib:export_attribute(osm_utils:ant_to_iolist(Value)), $"] ||{Name, Value} <- Attributes].
 
 %%--------------------------------------------------------------------
 %% @doc Formats empty XML tag

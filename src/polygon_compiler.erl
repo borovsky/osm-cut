@@ -89,7 +89,7 @@ parsed_points(String) ->
     FloatRegexp = "\s*(-?\\d+(\\.?\\d+)?([eE][-+]?\\d+)?)\s*",
     Regexp = ["^", FloatRegexp, "\\s+", FloatRegexp, $$],
     case re:run(String, Regexp, [{capture, [1, 4], list}]) of
-        {match, [X, Y]} -> {erlang:list_to_float(X), erlang:list_to_float(Y)};
+        {match, [X, Y]} -> {osm_utils:to_float(X), osm_utils:to_float(Y)};
         nomatch ->
             erlang:error("Incorrect point format")
     end.

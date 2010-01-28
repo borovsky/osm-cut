@@ -7,3 +7,4 @@ lib/erlsom/config.log
 lib/erlsom/config.status
 lib/erlsom/ebin/erlsom.app
 lib/erlsom/include.mk
+ebin

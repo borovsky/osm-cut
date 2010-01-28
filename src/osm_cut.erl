@@ -5,7 +5,7 @@
 %%% @end
 %%% Created :  8 Jan 2010 by Alexander Borovsky <alex.borovsky@gmail.com>
 
--module(main).
+-module(osm_cut).
 
 -export([main/4]).
 
@@ -19,19 +19,16 @@
 -spec(main(string(), string(), string(), property_list()) -> any()).
 main(SourceFile, PolygonFile, OutputFile, Options) ->
     Polygon = polygon_compiler:compile_polygon(PolygonFile, Options),
-    init_work_query(Polygon, OutputFile, Options),
 
-    process_file(SourceFile, Options).
+    OsmOptions = [{source_file, SourceFile}, {polygon, Polygon}, {output_file, OutputFile} | Options],
+    
+    application:set_env(osm, options, OsmOptions),
+    ok = application:start(osm),
+    Result = process_file(SourceFile, Options),
+    application:stop(osm),
+    
+    Result.
 
-%%--------------------------------------------------------------------
-%% @doc Creates work query processes
-%% @spec init_work_query(polygon_function(), string(), property_list()) -> any()
-%% @end
-%%--------------------------------------------------------------------
--spec(init_work_query(polygon_function(), string(), property_list()) -> any()).
-init_work_query(Polygon, OutputFile, Options) ->
-    osm_processor:start_link(Polygon, Options),
-    osm_writer:start_link(OutputFile).
 
 %%--------------------------------------------------------------------
 %% @doc Parses file
@@ -40,4 +37,6 @@ init_work_query(Polygon, OutputFile, Options) ->
 %%--------------------------------------------------------------------
 -spec(process_file(string(), property_list()) -> ok).
 process_file(SourceFile, Options) ->
-    osm_parser:parse(SourceFile, Options).
+    osm_parser:parse(SourceFile, Options),
+    WriterModule = proplists:get_value(writer_module, Options, osm_writer),
+    WriterModule:processing_result().

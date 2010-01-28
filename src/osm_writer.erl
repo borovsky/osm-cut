@@ -13,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, synchronize/0, close/0, write/1]).
+-export([start_link/1, synchronize/0, close/0, write/1, processing_result/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -57,7 +57,16 @@ write(endDocument) ->
 
 write(Data) ->
     gen_server:abcast(?SERVER, Data).
-    
+
+%%--------------------------------------------------------------------
+%% @doc Returns processing result
+%% @spec processing_result() -> ok
+%% @end
+%%--------------------------------------------------------------------
+-spec(processing_result() -> ok).
+processing_result() ->
+    ok.
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
@@ -66,7 +75,8 @@ write(Data) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(start_link(string()) -> any()).
-start_link(OutputFile) ->
+start_link(Options) ->
+    OutputFile = proplists:get_value(output_file, Options),
     gen_server:start_link({local, ?SERVER}, ?MODULE, [OutputFile], []).
 
 %%%===================================================================
