@@ -7,7 +7,7 @@ all: compile dializer test docs
 compile: 
 	mkdir -p ebin
 	mkdir -p test/ebin
-	erl -make 
+	erl -pa `pwd`/ebin -make 
 	cp -f src/*.app ebin/
 
 clean:
