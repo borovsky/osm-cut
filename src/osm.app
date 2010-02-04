@@ -3,10 +3,16 @@
   {vsn, "0.1"},
   {modules, [
              osm_application,
-             osm_supervisor,
-             osm_writer,
+             osm_cut,
+             osm_parser,
+             osm_process_complete,
+             osm_process_non_complete,
              osm_processor,
-             test_osm_writer
+             osm_supervisor,
+             osm_utils,
+             osm_writer,
+             polygon_compiler,
+             simple_xml_formatter
              ]},
   {applications, [kernel, stdlib]},
   {mod, {osm_application, []}},

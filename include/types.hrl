@@ -12,13 +12,12 @@
 
 -type(polygon_function() ::fun((float(), float()) -> boolean())).
 
-
 -type(interval() :: {{float(), float(), float()}, float(), float()} | {float(), float(), float()}).
 
 -type(property() :: tuple() | atom()).
 -type(property_list() :: list(property())).
 
--type(attribute() :: {atom(), binary()}).
+-type(attribute() :: {atom(), atom() | integer() | binary()}).
 -type(attributes() :: list(attribute())).
 
 -type(simple_xml_tag() :: {atom(), attributes(), list(tuple())}).

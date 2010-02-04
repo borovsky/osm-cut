@@ -156,7 +156,7 @@ classified_relation_children(Children) ->
 classified_relation_children([{member, Attributes, []} | Children], RefNodes, OtherChildren) ->
     Type = list_to_atom(proplists:get_value(type, Attributes)),
     Ref = list_to_integer(proplists:get_value(ref, Attributes)),
-    Role = unicode:characters_to_binary(proplists:get_value(role, Attributes)),
+    Role = osm_utils:list_to_atom_or_binary(proplists:get_value(role, Attributes)),
     
     classified_relation_children(Children, [{Type, Ref, Role} | RefNodes], OtherChildren);
 
@@ -172,16 +172,47 @@ encoded_tags(List) ->
 
 -spec(encoded_tags(simple_xml_tags(), tags()) -> tags()).
 encoded_tags([{tag, Attributes, []} | Tail], List) ->
-    K = unicode:characters_to_binary(proplists:get_value(k, Attributes)),
+    K = osm_utils:list_to_atom_or_binary(proplists:get_value(k, Attributes)),
     V = unicode:characters_to_binary(proplists:get_value(v, Attributes)),
     encoded_tags(Tail, [{K, V} | List]);
 
 encoded_tags([], List) ->
     List.
 
+% Removes extra attributes, optimize other
 -spec(strip_attributes(attributes(), list(atom())) -> attributes()).
 strip_attributes(Attributes, Strip) ->
-    lists:filter(fun({K, _}) -> not proplists:get_bool(K, Strip) end, Attributes). 
+    strip_attributes(Attributes, [], Strip).
+
+strip_attributes([], ProcessedAttributes, _) ->
+    ProcessedAttributes;
+
+strip_attributes([{K, V} | T], ProcessedAttributes, Strip) ->
+    case proplists:get_bool(K, Strip) of
+        true -> strip_attributes(T, ProcessedAttributes, Strip);
+        _ ->
+            strip_attributes(T, [optimize_attribute(K, V) | ProcessedAttributes], Strip)
+    end. 
+
+-spec(optimize_attribute(atom(), list()) -> attribute()).
+optimize_attribute(changeset = K, V) ->
+    {K, list_to_integer(V)};
+
+%We have not so many users for overflow atoms table
+optimize_attribute(user = K, V) ->
+    {K, osm_utils:list_to_atom_or_binary(V)};
+
+optimize_attribute(uid = K, V) ->
+    {K, list_to_integer(V)};
+
+optimize_attribute(version = K, V) ->
+    {K, list_to_integer(V)};
+
+optimize_attribute(timestamp = K, V) ->
+    {K, unicode:characters_to_binary(V)};
+
+optimize_attribute(K, V) ->
+    {K, V}.
 
 -spec(simple_xml(tuple(), list(simple_xml_tag)) -> simple_xml_tag()).
 simple_xml({startElement, _, Tag, _, Attributes}, Children) ->
