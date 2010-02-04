@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author Alexander Borovsky <aborovsky@exadel.com>
 %%% @copyright (C) 2010, Alexander Borovsky
-%%% @doc
+%%% @doc OSM processor, non-complete objects mode
 %%%
 %%% @end
 %%% Created : 29 Jan 2010 by Alexander Borovsky <aborovsky@exadel.com>
@@ -33,7 +33,7 @@ init(Options) ->
     
     #state{polygon_function = PolygonFunction,
                 reduced_set = gb_sets:new(),
-                writer_module=WriterModule} .
+                writer_module=WriterModule}.
 
 
 %%--------------------------------------------------------------------

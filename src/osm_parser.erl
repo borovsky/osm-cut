@@ -120,6 +120,8 @@ process_element({relation, Attributes, Children}, State) ->
 
 process_element(endDocument, State) ->
     send_message(endDocument, State#event_state.processor_module),
+    Processor = State#event_state.processor_module,
+    Processor:synchronize(),
     State;
 
 process_element(Element, State) ->
@@ -164,11 +166,11 @@ classified_relation_children([Other | Children], RefNodes, OtherChildren) ->
 classified_relation_children([], RefNodes, OtherChildren) ->
     {RefNodes, OtherChildren}.
 
--spec(encoded_tags(simple_xml_tags()) -> tag_list()).
+-spec(encoded_tags(simple_xml_tags()) -> tags()).
 encoded_tags(List) ->
     encoded_tags(List, []).
 
--spec(encoded_tags(simple_xml_tags(), tag_list()) -> tag_list()).
+-spec(encoded_tags(simple_xml_tags(), tags()) -> tags()).
 encoded_tags([{tag, Attributes, []} | Tail], List) ->
     K = unicode:characters_to_binary(proplists:get_value(k, Attributes)),
     V = unicode:characters_to_binary(proplists:get_value(v, Attributes)),

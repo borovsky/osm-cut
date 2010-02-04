@@ -25,18 +25,40 @@
 -type(simple_xml_tags() :: list(simple_xml_tag())).
 
 -type(tag() :: {binary(), binary()}).
--type(tag_list() :: list(tag())).
+-type(tags() :: list(tag())).
 -type(member() :: {node | way | relation, integer(), binary()}).
 -type(members() :: list(member())).
 
--type(root_element() :: {osm, attributes(),[]}).
--type(node_element() :: {node, integer(), point(), attributes(), tag_list()}).
--type(way_element() :: {way, integer(), list(integer()), attributes(), tag_list()}).
--type(relation_element() :: {relation, integer(), members(), attributes(), tag_list()}).
+-type(root_element() :: {osm, attributes()}).
+
+-record(osm, {
+          attributes :: attributes(),
+          childs :: []
+          }).
+-record(node,
+        {
+          id :: integer(),
+          position :: point(),
+          attributes :: attributes(),
+          tags :: tags()
+         }).
+-record(way, {
+          id :: integer(),
+          nodes :: list(integer()),
+          attributes :: attributes(),
+          tags :: tags()
+         }).
+
+-record(relation, {
+          id :: integer(),
+          members :: members(),
+          attributes :: attributes(),
+          tags :: tags()
+          }).
 
 -type(source_element() ::
-      root_element() |
-      node_element() |
-      way_element() |
-      relation_element() |
+      #osm{} |
+      #node{} |
+      #way{} |
+      #relation{} |
       endDocument).

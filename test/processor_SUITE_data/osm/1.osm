@@ -22,6 +22,10 @@
     <tag k="highway" v="service"/>
   </way>
 
+  <way id="2">
+    <nd ref="4"/>
+  </way>
+
   <relation id="1" version="1" timestamp="2009-12-13T17:06:48Z" uid="118927" user="DSem" changeset="3364749">
     <member type="way" ref="1" role=""/>
     <member type="node" ref="6" role=""/>
@@ -29,5 +33,17 @@
     <tag k="boundary" v="administrative"/>
     <tag k="name" v="Warsaw"/>
     <tag k="type" v="boundary"/>
+  </relation>
+
+  <relation id="2">
+    <member type="node" ref="4" role=""/>
+  </relation>
+
+  <relation id="3">
+    <member type="way" ref="2" role=""/>
+  </relation>
+
+  <relation id="4">
+    <member type="relation" ref="2" role=""/>
   </relation>
 </osm>

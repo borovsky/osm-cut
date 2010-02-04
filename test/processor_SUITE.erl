@@ -92,7 +92,7 @@ end_per_testcase(_TestCase, _Config) ->
 %% @end
 %%--------------------------------------------------------------------
 all() ->
-    [check_simple_process].
+    [check_simple_process, check_complete_objects_process].
 
 execute_process(OsmFile, PolyFile, Options, Config) ->
     DataDir = proplists:get_value(data_dir, Config),
@@ -216,4 +216,49 @@ check_simple_process(Config) when is_list(Config) ->
                               {name, "Warsaw"},
                               {type, boundary}
                              ]}),
+    ok.
+
+check_complete_objects_process() ->
+    [{doc, "Checks process simple file"}].
+
+check_complete_objects_process(Config) when is_list(Config) ->
+    Nodes = execute_process("1.osm", "simple.poly", [complete_objects], Config),
+    10 = length(Nodes),
+    % Check presence of required set of nodes
+    assert_exists(Nodes, {node, 1}),
+    assert_exists(Nodes, {node, 2}),
+    assert_exists(Nodes, {node, 3}),
+    assert_exists(Nodes, {node, 4}),
+    assert_exists(Nodes, {way, 1}),
+    assert_exists(Nodes, {relation, 1}),
+    assert_exists(Nodes, {relation, 2}),
+    assert_exists(Nodes, {relation, 4}),
+
+    % Check if way contains all nodes printed
+    assert_exists(Nodes, {way, 1, [1, 2, 3, 4, 1], [{version, 3},
+                                                    {changeset, 1368552},
+                                                    {user, "Matt"},
+                                                    {uid, 70},
+                                                    {visible, true},
+                                                    {timestamp, "2009-05-31T13:39:15Z"}
+                                                   ], [
+                                                       {access, private},
+                                                       {highway, service}
+                                                      ]}),
+    assert_exists(Nodes, {relation, 1, [{way, 1, ""}, {node, 6, ""}],
+                          [{version, 1},
+                           {changeset, 3364749},
+                           {user, "DSem"},
+                           {uid, 118927},
+                           {timestamp, "2009-12-13T17:06:48Z"}
+                          ], [
+                              {admin_level, 8},
+                              {boundary, administrative},
+                              {name, "Warsaw"},
+                              {type, boundary}
+                             ]}),
+
+    assert_exists(Nodes, {relation, 2, [{node, 4, ""}], [], []}),
+    assert_exists(Nodes, {relation, 4, [{relation, 2, ""}], [], []}),
+    
     ok.
