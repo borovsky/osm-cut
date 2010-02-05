@@ -119,7 +119,7 @@ is_eq({node, Id, {X, Y}, Attributes, Tags} = S, {node, Id, {XR, YR}, AttributesR
           is_eq_tuples(Attributes, AttributesR) andalso
           is_eq_tuples(Tags, TagsR)) of
         true -> true;
-        else -> io:format("Not matched: ~p and ~p~n", [S, D]),
+        else -> erlang:error({"Not matched: ", S, D}),
                 false
     end;
 
@@ -128,7 +128,7 @@ is_eq({way, Id, Members, Attributes, Tags} = S, {way, Id, MembersR, AttributesR,
           is_eq_tuples(Attributes, AttributesR) andalso
           is_eq_tuples(Tags, TagsR)) of
         true -> true;
-        false -> io:format("Not matched: ~p and ~p~n", [S, D]),
+        false -> erlang:error({"Not matched: ", S, D}),
                  false
     end;
 
@@ -137,7 +137,7 @@ is_eq({relation, Id, Items, Attributes, Tags} = S, {relation, Id, ItemsR, Attrib
           is_eq_tuples(Attributes, AttributesR) andalso
           is_eq_tuples(Tags, TagsR)) of
         true -> true;
-        false -> io:format("Not matched: ~p and ~p~n", [S, D]),
+        false -> erlang:error({"Not matched: ", S, D}),
                  false
     end;
 
@@ -149,7 +149,7 @@ is_eq_tuples(List1, List2) ->
         true ->
             is_eq_tuples_int(List1, List2);
         false ->
-            io:format("Not matched length: ~p and ~p", [List1, List2]),
+            erlang:error({"Not matched length:", List1, List2}),
             false
     end.
 
@@ -163,7 +163,7 @@ is_eq_tuples_int([Item | Tail], List) ->
         true ->
             is_eq_tuples_int(Tail, List);
         false ->
-            io:format("Not matched ~p in ~p", [Item, List]),
+            erlang:error({"Not matched: ", Item, List}),
             false
     end.                     
 
@@ -245,7 +245,7 @@ check_complete_objects_process(Config) when is_list(Config) ->
                                                        {access, private},
                                                        {highway, service}
                                                       ]}),
-    assert_exists(Nodes, {relation, 1, [{way, 1, ""}, {node, 6, ""}],
+    assert_exists(Nodes, {relation, 1, [{way, 1, ""}],
                           [{version, 1},
                            {changeset, 3364749},
                            {user, "DSem"},

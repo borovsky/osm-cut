@@ -45,5 +45,6 @@
 
   <relation id="4">
     <member type="relation" ref="2" role=""/>
+    <member type="relation" ref="3" role=""/>
   </relation>
 </osm>

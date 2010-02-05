@@ -199,7 +199,7 @@ nodes_in_poligon([E | Tail], Set, NodesIn, NodesOut) ->
         false ->
             nodes_in_poligon(Tail, Set, NodesIn, [E | NodesOut])
     end;
-nodes_in_poligon([], _, [], NodesOut) ->
+nodes_in_poligon([], _, [], _) ->
     out;
 
 nodes_in_poligon([], _, _, NodesOut) ->
@@ -244,5 +244,8 @@ calculate_relations([H | T], ReducedSet, LinksToParent) ->
 calculate_relations([], ReducedSet, _) ->
     ReducedSet.
 
-filtered_relation(#relation{} = Relation, Set) ->
-    Relation.
+filtered_relation(#relation{members = Members} = Relation, Set) ->
+    FilteredMembers = lists:filter(fun({T, Id, _}) ->
+                                           osm_set:is_member({T, Id}, Set)
+                                   end, Members),
+    Relation#relation{members = FilteredMembers}.

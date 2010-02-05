@@ -51,6 +51,7 @@ any_to_iolist(A) ->
 any_to_bin(A) ->
     iolist_to_binary(any_to_iolist(A)).
 
+-spec(list_to_atom_or_binary(string()) -> binary()).
 list_to_atom_or_binary("") ->
     <<>>;
 
