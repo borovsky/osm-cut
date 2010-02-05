@@ -17,17 +17,17 @@
 -behaviour(osm_processor).
 
 -record(state, {
-          polygon_function,
-          reduced_set = osm_set:empty() :: osm_set(),
-          stored_nodes,
-          mode = nodes,
-          writer_module,
-          ways_to_write,
-          written_nodes,
-          nodes_to_add = [],
-          stored_relations = [],
-          relations_to_search = [],
-          links_to_parent
+          polygon_function :: polygon_function(), % Function for check if node inside
+          reduced_set = osm_set:empty() :: osm_set(), % List of written items
+          stored_nodes, % Nodes not written, but stored for way processing
+          mode = nodes :: nodes | ways | relations, % current mode: nodes, ways or relations
+          writer_module :: atom(), % Module for write result
+          ways_to_write :: list(source_element()), % Ways that should be written when we spot first relation
+          nodes_to_write = gb_sets:new() :: gb_set(), % Set of nodes for writ (but outside poligon)
+          stored_relations, % List of relations for future processing
+          relations_to_search = [], % List of relations that included because they have selected nodes / ways
+          % Link to list of relations, that should be included if key relation included
+          links_to_parent = gb_trees:empty() :: gb_tree() 
          }).
 
 %%%===================================================================
@@ -41,10 +41,10 @@ init(Options) ->
     
     #state{polygon_function = PolygonFunction,
            reduced_set = osm_set:empty(),
-           stored_nodes = gb_trees:empty(),
+           stored_nodes = osm_node_storage:create("nodes"),
            writer_module=WriterModule,
-           ways_to_write = [],
-           written_nodes = gb_sets:new()}.
+           ways_to_write = []
+          }.
 
 
 %%--------------------------------------------------------------------
@@ -71,7 +71,7 @@ process_message(#node{id  = Id, position = {X, Y}} = Element,
             Writer:write(Element),
             State#state{reduced_set = NewSet};
         _ ->
-            NewNodeSet = gb_trees:insert(Id, Element, NodeSet),
+            NewNodeSet = osm_node_storage:add(Element, NodeSet),
             State#state{stored_nodes = NewNodeSet}
     end;
 
@@ -79,18 +79,16 @@ process_message(#node{id  = Id, position = {X, Y}} = Element,
 process_message(#way{id = Id, nodes = Nodes} = Element,
                 #state{reduced_set = Set,
                        ways_to_write = WaysToWrite,
-                       nodes_to_add = NodesToAdd,
                        mode = ways} = State) ->
     case nodes_in_poligon(Nodes, Set) of
         out ->
             State#state{mode = ways};
         NodesOut ->
-            NewState = write_new_nodes(State, NodesOut),
+            NewState = calculate_nodes_to_write(State, NodesOut),
             NewSet = osm_set:add({way, Id}, Set),
             NewWaysToWrite = [Element | WaysToWrite],
             NewState#state{reduced_set = NewSet,
                            ways_to_write = NewWaysToWrite,
-                           nodes_to_add = Nodes ++ NodesToAdd,
                            mode = ways}
     end;
 
@@ -119,22 +117,33 @@ process_message(#relation{id = Id,
             NewMembers = lists:filter(fun({Type, _, _}) ->
                                              Type == relation
                                      end, Members),
-            NewRelations = [Relation#relation{members = NewMembers} | StoredRelations],
+            NewRelations = osm_node_storage:add(Relation#relation{members = NewMembers}, StoredRelations),
             NewLinks = lists:foldl(fun(E, S) -> add_link_to_parent(E, S, Id) end,
                                    LinksToParent, NewMembers),
             State#state{stored_relations = NewRelations,
                         links_to_parent = NewLinks};
         _ ->
-            NewRelations = [Relation | StoredRelations],
+            NewRelations = osm_node_storage:add(Relation, StoredRelations),
             State#state{stored_relations = NewRelations,
                         relations_to_search = [Id | RelationsToSearch]}
     end;
 
 process_message(#relation{} = Msg,
                 #state{writer_module = Writer,
-                       nodes_to_add = NodesToAdd,
                        reduced_set = ReducedSet,
-                       ways_to_write = WaysToWrite} = State) ->
+                       ways_to_write = WaysToWrite,
+                       nodes_to_write = NodesToWrite,
+                       stored_nodes = StoredNodes} = State) ->
+    % Flush all collected nodes
+    NewSet = osm_node_storage:fold(
+               fun(#node{id = Id} = E, S) ->
+                       case gb_sets:is_member(Id, NodesToWrite) of
+                           true ->
+                               Writer:write(E),
+                               osm_set:add({node, Id}, S);
+                           _ -> S
+                       end end, ReducedSet, StoredNodes),
+    
     % Flush collected ways: we processed all of them
     lists:foldl(fun(E, I) ->
                         Writer:write(E),
@@ -144,18 +153,14 @@ process_message(#relation{} = Msg,
                             _ -> I + 1
                         end
                 end, 0, WaysToWrite),
-    % Add all collected nodes
-    NewSet = lists:foldl(fun(E, S) ->
-                                 osm_set:add({node, E}, S)
-                         end, ReducedSet, NodesToAdd),
     
     % Drop collected ways and nodes
     process_message(Msg, State#state{mode = relations,
-                                     stored_nodes = [],
+                                     stored_nodes = osm_node_storage:close(StoredNodes),
                                      ways_to_write = [],
                                      links_to_parent = gb_trees:empty(),
-                                     reduced_set = NewSet,
-                                     nodes_to_add = []});
+                                     stored_relations = osm_node_storage:create("relations"),
+                                     reduced_set = NewSet});
 
 %% end element
 process_message(endDocument, #state{writer_module=Writer,
@@ -168,16 +173,16 @@ process_message(endDocument, #state{writer_module=Writer,
     NewSet = calculate_relations(RelationsToSearch, ReducedSet, LinksToParent),
 
     % 2) Write all selected relations
-    lists:foreach(fun(#relation{id = Id} = E) ->
-                          case osm_set:is_member({relation, Id}, NewSet) of
-                              true ->
-                                  Writer:write(filtered_relation(E, NewSet));
-                              _ -> ok
-                          end
-                  end, StoredRelations),
+    osm_node_storage:fold(fun(#relation{id = Id} = E, _) ->
+                                  case osm_set:is_member({relation, Id}, NewSet) of
+                                      true ->
+                                          Writer:write(filtered_relation(E, NewSet));
+                                      _ -> ok
+                                  end
+                          end, any, StoredRelations),
     
     Writer:write(endDocument),
-    State;
+    State#state{stored_relations = osm_node_storage:close(StoredRelations)};
 
 
 %% other element.
@@ -205,19 +210,15 @@ nodes_in_poligon([], _, [], _) ->
 nodes_in_poligon([], _, _, NodesOut) ->
     NodesOut.
             
-write_new_nodes(State, []) ->
+calculate_nodes_to_write(State, []) ->
     State;
 
-write_new_nodes(#state{writer_module = WriterModule,
-                       written_nodes = WrittenNodes,
-                       stored_nodes = StoredNodes} = State, [Head | Tail]) ->
-    case gb_sets:is_member(Head, WrittenNodes) of
-        true -> write_new_nodes(State, Tail);
+calculate_nodes_to_write(#state{nodes_to_write = NodesToWrite} = State, [Head | Tail]) ->
+    case gb_sets:is_member(Head, NodesToWrite) of
+        true -> calculate_nodes_to_write(State, Tail);
         _ ->
-            Node = gb_trees:get(Head, StoredNodes),
-            WriterModule:write(Node),
-            NewState = State#state{written_nodes  = gb_sets:add(Head, WrittenNodes)},
-            write_new_nodes(NewState, Tail)
+            NewState = State#state{nodes_to_write = gb_sets:add(Head, NodesToWrite)},
+            calculate_nodes_to_write(NewState, Tail)
     end.
 
 add_link_to_parent({relation, Id, _}, S, ParentId) ->
