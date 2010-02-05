@@ -55,6 +55,7 @@ init(Options) ->
 -spec(process_message(source_element(), #state{}) -> #state{}).
 %% start element
 process_message(#osm{} = Element, #state{writer_module=Writer} = State) ->
+    io:format("~p: processing started~n", [erlang:localtime()]),
     Writer:write(Element),
     State;
 
@@ -134,6 +135,10 @@ process_message(#relation{} = Msg,
                        ways_to_write = WaysToWrite,
                        nodes_to_write = NodesToWrite,
                        stored_nodes = StoredNodes} = State) ->
+    io:format("~p: ways processed~n", [erlang:localtime()]),
+    io:format("  Set size: ~p~n", [erts_debug:size(State#state.reduced_set)]),
+    io:format("  Nodes size: ~p~n", [erts_debug:flat_size(State#state.stored_nodes)]),
+    io:format("  State size: ~p~n", [erts_debug:flat_size(State)]),
     % Flush all collected nodes
     NewSet = osm_node_storage:fold(
                fun(#node{id = Id} = E, S) ->

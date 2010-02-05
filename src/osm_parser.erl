@@ -91,46 +91,54 @@ sax_callback(Event, State) ->
     State.
 
 process_element({osm, _, _} = Element, State) ->
-    send_message(Element, State#event_state.processor_module),
+    send_message(Element, State#event_state.processor_module, 1),
     State;
 
-process_element({node, Attributes, Children}, State) ->
+process_element({node, Attributes, Children},
+                #event_state{message_count = MessageCount,
+                             processor_module = Processor} = State) ->
     Lon = osm_utils:to_float(proplists:get_value(lon, Attributes)),
     Lat = osm_utils:to_float(proplists:get_value(lat, Attributes)),
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     send_message({node, Id, {Lon, Lat}, strip_attributes(Attributes, [id, lat, lon]),
-                 encoded_tags(Children)}, State#event_state.processor_module),
-    State#event_state{message_count = State#event_state.message_count + 1};
+                 encoded_tags(Children)}, Processor, MessageCount),
+    State#event_state{message_count = MessageCount + 1};
 
-process_element({way, Attributes, Children}, State) ->
+process_element({way, Attributes, Children},
+                #event_state{message_count = MessageCount,
+                             processor_module = Processor} = State) ->
     {Nodes, Tags} = classified_way_children(Children),
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     
     send_message({way, Id, Nodes, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}, State#event_state.processor_module),
-    State#event_state{message_count = State#event_state.message_count + 1};
+                 encoded_tags(Tags)}, Processor, MessageCount),
+    State#event_state{message_count = MessageCount + 1};
 
-process_element({relation, Attributes, Children}, State) ->
+process_element({relation, Attributes, Children},
+                #event_state{message_count = MessageCount,
+                             processor_module = Processor} = State) ->
     {Members, Tags} = classified_relation_children(Children),
     Id = list_to_integer(proplists:get_value(id, Attributes)),
     
     send_message({relation, Id, Members, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}, State#event_state.processor_module),
-    State#event_state{message_count = State#event_state.message_count + 1};
+                 encoded_tags(Tags)}, Processor, MessageCount),
+    State#event_state{message_count = MessageCount + 1};
 
 process_element(endDocument, State) ->
-    send_message(endDocument, State#event_state.processor_module),
-    Processor = State#event_state.processor_module,
-    Processor:synchronize(),
+    send_message(endDocument, State#event_state.processor_module, 0), % with synchronization
     State;
 
 process_element(Element, State) ->
     io:format("Unprocessed element: ~p~n", [Element]),
     State.
 
--spec(send_message(source_element(), atom()) -> any()).
-send_message(Element, Processor) ->
-    Processor:process(Element).
+-spec(send_message(source_element(), atom(), integer()) -> any()).
+send_message(Element, Processor, MessageCount) ->
+    Processor:process(Element),
+    case MessageCount rem 10000 of
+        0 -> Processor:synchronize();
+        _ -> ok
+    end.
 
 -spec(classified_way_children(simple_xml_tags()) -> {list(integer()), simple_xml_tags()}).
 classified_way_children(Children) ->
