@@ -49,7 +49,7 @@ process(Node) ->
 %%--------------------------------------------------------------------
 -spec(synchronize() -> any()).
 synchronize() ->
-    gen_server:call(?SERVER, ping).
+    gen_server:call(?SERVER, ping, infinity).
 
 
 %%--------------------------------------------------------------------

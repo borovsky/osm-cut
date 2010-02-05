@@ -18,7 +18,7 @@
 
 -record(state, {
           polygon_function,
-          reduced_set :: gb_set(),
+          reduced_set = osm_set:empty() :: osm_set(),
           stored_nodes,
           mode = nodes,
           writer_module,
@@ -40,7 +40,7 @@ init(Options) ->
     WriterModule = proplists:get_value(writer_module, Options, osm_writer),
     
     #state{polygon_function = PolygonFunction,
-           reduced_set = gb_sets:new(),
+           reduced_set = osm_set:empty(),
            stored_nodes = gb_trees:empty(),
            writer_module=WriterModule,
            ways_to_write = [],
@@ -67,7 +67,7 @@ process_message(#node{id  = Id, position = {X, Y}} = Element,
                        mode = nodes} = State) ->
     case PolygonFunction(X, Y) of
         true ->
-            NewSet = gb_sets:add({node, Id}, Set),
+            NewSet = osm_set:add({node, Id}, Set),
             Writer:write(Element),
             State#state{reduced_set = NewSet};
         _ ->
@@ -80,20 +80,27 @@ process_message(#way{id = Id, nodes = Nodes} = Element,
                 #state{reduced_set = Set,
                        ways_to_write = WaysToWrite,
                        nodes_to_add = NodesToAdd,
-                       mode = Mode} = State) when (Mode == nodes) orelse
-                                                  (Mode == ways) ->
+                       mode = ways} = State) ->
     case nodes_in_poligon(Nodes, Set) of
         out ->
             State#state{mode = ways};
         NodesOut ->
             NewState = write_new_nodes(State, NodesOut),
-            NewSet = gb_sets:add({way, Id}, Set),
+            NewSet = osm_set:add({way, Id}, Set),
             NewWaysToWrite = [Element | WaysToWrite],
             NewState#state{reduced_set = NewSet,
                            ways_to_write = NewWaysToWrite,
                            nodes_to_add = Nodes ++ NodesToAdd,
                            mode = ways}
     end;
+
+process_message(#way{} = Element,
+                #state{mode = nodes} = State) ->
+    io:format("~p: nodes processed~n", [erlang:localtime()]),
+    io:format("  Set size: ~p~n", [erts_debug:size(State#state.reduced_set)]),
+    io:format("  Nodes size: ~p~n", [erts_debug:flat_size(State#state.stored_nodes)]),
+    io:format("  State size: ~p~n", [erts_debug:flat_size(State)]),
+    process_message(Element, State#state{mode=ways});
 
 %% relation element
 process_message(#relation{id = Id,
@@ -105,7 +112,7 @@ process_message(#relation{id = Id,
                        stored_relations = StoredRelations} = State) ->
     FilteredMembers =
         lists:filter(fun({Type, MemberId, _}) ->
-                             gb_sets:is_member({Type, MemberId}, Set) end,
+                             osm_set:is_member({Type, MemberId}, Set) end,
                      Members),
     case FilteredMembers of
         [] -> % This releation will not have any ways/nodes, so drop them
@@ -139,7 +146,7 @@ process_message(#relation{} = Msg,
                 end, 0, WaysToWrite),
     % Add all collected nodes
     NewSet = lists:foldl(fun(E, S) ->
-                                 gb_sets:add({node, E}, S)
+                                 osm_set:add({node, E}, S)
                          end, ReducedSet, NodesToAdd),
     
     % Drop collected ways and nodes
@@ -162,7 +169,7 @@ process_message(endDocument, #state{writer_module=Writer,
 
     % 2) Write all selected relations
     lists:foreach(fun(#relation{id = Id} = E) ->
-                          case gb_sets:is_member({relation, Id}, NewSet) of
+                          case osm_set:is_member({relation, Id}, NewSet) of
                               true ->
                                   Writer:write(filtered_relation(E, NewSet));
                               _ -> ok
@@ -186,7 +193,7 @@ nodes_in_poligon(Nodes, Set) ->
     nodes_in_poligon(Nodes, Set, [], []).
 
 nodes_in_poligon([E | Tail], Set, NodesIn, NodesOut) ->
-    case gb_sets:is_member({node, E}, Set) of
+    case osm_set:is_member({node, E}, Set) of
         true ->
             nodes_in_poligon(Tail, Set, [E | NodesIn], NodesOut);
         false ->
@@ -222,9 +229,9 @@ add_link_to_parent({relation, Id, _}, S, ParentId) ->
     end.
 
 calculate_relations([H | T], ReducedSet, LinksToParent) ->
-    case gb_sets:is_member({relation, H}, ReducedSet) of
+    case osm_set:is_member({relation, H}, ReducedSet) of
         false ->
-            NewSet = gb_sets:insert({relation, H}, ReducedSet),
+            NewSet = osm_set:add({relation, H}, ReducedSet),
             case gb_trees:lookup(H, LinksToParent) of
                 none ->
                     calculate_relations(T, NewSet, LinksToParent);

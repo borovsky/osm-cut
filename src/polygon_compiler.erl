@@ -122,7 +122,6 @@ compile(Polygons) ->
 -spec(compile_polygon(polygon_def()) -> polygon_function()).
 compile_polygon({_,PrePoints}) ->
     Points = extended_polygon_points(PrePoints),
-    io:format("Compiling polygon: ~p~n", [Points]),
     Xs = lists:map(fun({X, _Y}) -> X end, Points),
     Ys = lists:map(fun({_X, Y}) -> Y end, Points),
     Xmin = lists:min(Xs),

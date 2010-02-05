@@ -36,20 +36,20 @@
           }).
 -record(node,
         {
-          id :: integer(),
+          id = 0:: integer(),
           position :: point(),
           attributes :: attributes(),
           tags :: tags()
          }).
 -record(way, {
-          id :: integer(),
+          id = 0 :: integer(),
           nodes :: list(integer()),
           attributes :: attributes(),
           tags :: tags()
          }).
 
 -record(relation, {
-          id :: integer(),
+          id = 0 :: integer(),
           members :: members(),
           attributes :: attributes(),
           tags :: tags()
@@ -61,3 +61,5 @@
       #way{} |
       #relation{} |
       endDocument).
+
+-type(osm_set() :: {set, gb_set(), gb_set(), gb_set()}).
