@@ -17,7 +17,7 @@
           processor_module
          }).
 
--include("types.hrl").
+-include("../include/types.hrl").
 
 -spec(parse(string(), property_list()) -> any()).
 parse(SourceFile, Options) ->
@@ -97,31 +97,28 @@ process_element({osm, _, _} = Element, State) ->
 process_element({node, Attributes, Children},
                 #event_state{message_count = MessageCount,
                              processor_module = Processor} = State) ->
-    Lon = osm_utils:to_float(proplists:get_value(lon, Attributes)),
-    Lat = osm_utils:to_float(proplists:get_value(lat, Attributes)),
-    Id = list_to_integer(proplists:get_value(id, Attributes)),
-    send_message({node, Id, {Lon, Lat}, strip_attributes(Attributes, [id, lat, lon]),
-                 encoded_tags(Children)}, Processor, MessageCount),
+    Node = populate_node_attributes(#node{tags = encoded_tags(Children)}, Attributes),
+    send_message(Node, Processor, MessageCount),
     State#event_state{message_count = MessageCount + 1};
 
 process_element({way, Attributes, Children},
                 #event_state{message_count = MessageCount,
                              processor_module = Processor} = State) ->
+
     {Nodes, Tags} = classified_way_children(Children),
-    Id = list_to_integer(proplists:get_value(id, Attributes)),
+    Way = populate_way_attributes(#way{tags = encoded_tags(Tags), nodes = Nodes}, Attributes),
     
-    send_message({way, Id, Nodes, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}, Processor, MessageCount),
+    send_message(Way, Processor, MessageCount),
     State#event_state{message_count = MessageCount + 1};
 
 process_element({relation, Attributes, Children},
                 #event_state{message_count = MessageCount,
                              processor_module = Processor} = State) ->
     {Members, Tags} = classified_relation_children(Children),
-    Id = list_to_integer(proplists:get_value(id, Attributes)),
+
+    Relation = populate_relation_attributes(#relation{tags = encoded_tags(Tags), members = Members}, Attributes),
     
-    send_message({relation, Id, Members, strip_attributes(Attributes, [id]),
-                 encoded_tags(Tags)}, Processor, MessageCount),
+    send_message(Relation, Processor, MessageCount),
     State#event_state{message_count = MessageCount + 1};
 
 process_element(endDocument, State) ->
@@ -187,43 +184,90 @@ encoded_tags([{tag, Attributes, []} | Tail], List) ->
 encoded_tags([], List) ->
     List.
 
-% Removes extra attributes, optimize other
--spec(strip_attributes(attributes(), list(atom())) -> attributes()).
-strip_attributes(Attributes, Strip) ->
-    strip_attributes(Attributes, [], Strip).
-
-strip_attributes([], ProcessedAttributes, _) ->
-    ProcessedAttributes;
-
-strip_attributes([{K, V} | T], ProcessedAttributes, Strip) ->
-    case proplists:get_bool(K, Strip) of
-        true -> strip_attributes(T, ProcessedAttributes, Strip);
-        _ ->
-            strip_attributes(T, [optimize_attribute(K, V) | ProcessedAttributes], Strip)
-    end. 
-
--spec(optimize_attribute(atom(), list()) -> attribute()).
-optimize_attribute(changeset = K, V) ->
-    {K, list_to_integer(V)};
-
-%We have not so many users for overflow atoms table
-optimize_attribute(user = K, V) ->
-    {K, osm_utils:list_to_atom_or_binary(V)};
-
-optimize_attribute(uid = K, V) ->
-    {K, list_to_integer(V)};
-
-optimize_attribute(version = K, V) ->
-    {K, list_to_integer(V)};
-
-optimize_attribute(timestamp = K, V) ->
-    {K, unicode:characters_to_binary(V)};
-
-optimize_attribute(K, V) ->
-    {K, V}.
-
 -spec(simple_xml(tuple(), list(simple_xml_tag)) -> simple_xml_tag()).
 simple_xml({startElement, _, Tag, _, Attributes}, Children) ->
     {list_to_atom(Tag), % Risky, but fast
      lists:map(fun({attribute, Name, _, _, Value}) -> {list_to_atom(Name), Value} end, Attributes),
      Children}.
+
+populate_node_attributes(#node{} = Node, [{lon, Lon} | Tail]) ->
+    populate_node_attributes(Node#node{x = osm_utils:to_float(Lon)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{lat, Lat} | Tail]) ->
+    populate_node_attributes(Node#node{y = osm_utils:to_float(Lat)}, Tail);
+
+%Common attributes
+populate_node_attributes(#node{} = Node, [{id, Id} | Tail]) ->
+    populate_node_attributes(Node#node{id = list_to_integer(Id)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{version, Version} | Tail]) ->
+    populate_node_attributes(Node#node{version = list_to_integer(Version)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{changeset, Changeset} | Tail]) ->
+    populate_node_attributes(Node#node{changeset = list_to_integer(Changeset)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{uid, Uid} | Tail]) ->
+    populate_node_attributes(Node#node{uid = list_to_integer(Uid)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{user, User} | Tail]) ->
+    populate_node_attributes(Node#node{user = osm_utils:list_to_atom_or_binary(User)}, Tail);
+
+populate_node_attributes(#node{} = Node, [{timestamp, Timestamp} | Tail]) ->
+    populate_node_attributes(Node#node{timestamp = unicode:characters_to_binary(Timestamp)}, Tail);
+
+populate_node_attributes(#node{} = Node, [Attr | Tail]) ->
+    io:format("Unknown attribute: ~p~n", [Attr]),
+    populate_node_attributes(Node, Tail);
+
+populate_node_attributes(#node{} = Node, []) ->
+    Node.
+
+populate_way_attributes(#way{} = Way, [{id, Id} | Tail]) ->
+    populate_way_attributes(Way#way{id = list_to_integer(Id)}, Tail);
+
+populate_way_attributes(#way{} = Way, [{version, Version} | Tail]) ->
+    populate_way_attributes(Way#way{version = list_to_integer(Version)}, Tail);
+
+populate_way_attributes(#way{} = Way, [{changeset, Changeset} | Tail]) ->
+    populate_way_attributes(Way#way{changeset = list_to_integer(Changeset)}, Tail);
+
+populate_way_attributes(#way{} = Way, [{uid, Uid} | Tail]) ->
+    populate_way_attributes(Way#way{uid = list_to_integer(Uid)}, Tail);
+
+populate_way_attributes(#way{} = Way, [{user, User} | Tail]) ->
+    populate_way_attributes(Way#way{user = osm_utils:list_to_atom_or_binary(User)}, Tail);
+
+populate_way_attributes(#way{} = Way, [{timestamp, Timestamp} | Tail]) ->
+    populate_way_attributes(Way#way{timestamp = unicode:characters_to_binary(Timestamp)}, Tail);
+
+populate_way_attributes(#way{} = Way, [Attr | Tail]) ->
+    io:format("Unknown attribute: ~p~n", [Attr]),
+    populate_way_attributes(Way, Tail);
+
+populate_way_attributes(#way{} = Way, []) ->
+    Way.
+
+populate_relation_attributes(#relation{} = Relation, [{id, Id} | Tail]) ->
+    populate_relation_attributes(Relation#relation{id = list_to_integer(Id)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [{version, Version} | Tail]) ->
+    populate_relation_attributes(Relation#relation{version = list_to_integer(Version)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [{changeset, Changeset} | Tail]) ->
+    populate_relation_attributes(Relation#relation{changeset = list_to_integer(Changeset)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [{uid, Uid} | Tail]) ->
+    populate_relation_attributes(Relation#relation{uid = list_to_integer(Uid)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [{user, User} | Tail]) ->
+    populate_relation_attributes(Relation#relation{user = osm_utils:list_to_atom_or_binary(User)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [{timestamp, Timestamp} | Tail]) ->
+    populate_relation_attributes(Relation#relation{timestamp = unicode:characters_to_binary(Timestamp)}, Tail);
+
+populate_relation_attributes(#relation{} = Relation, [Attr | Tail]) ->
+    io:format("Unknown attribute: ~p~n", [Attr]),
+    populate_relation_attributes(Relation, Tail);
+
+populate_relation_attributes(#relation{} = Relation, []) ->
+    Relation.

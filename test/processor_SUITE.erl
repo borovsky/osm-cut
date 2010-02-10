@@ -14,7 +14,7 @@
 -compile(export_all).
 
 -include("ct.hrl").
--include("types.hrl").
+-include("../include/types.hrl").
 
 %% Test server callback functions
 %%--------------------------------------------------------------------
@@ -113,29 +113,27 @@ is_eq({Type, Id}, N) when is_tuple(N) ->
     (Type == element(1, N)) andalso (Id == element(2, N));
 
 % Node element deep check
-is_eq({node, Id, {X, Y}, Attributes, Tags} = S, {node, Id, {XR, YR}, AttributesR, TagsR} = D) ->
-    case ((float(X) == float(XR)) andalso
-          (float(Y) == float(YR)) andalso
-          is_eq_tuples(Attributes, AttributesR) andalso
-          is_eq_tuples(Tags, TagsR)) of
+is_eq(#node{id = Id} = S, #node{id = Id} = D) ->
+    case (tuple_to_gen_list(S#node{tags = []}) == tuple_to_gen_list(D#node{tags = []})) andalso
+          is_eq_tuples(S#node.tags, D#node.tags) of
         true -> true;
-        else -> erlang:error({"Not matched: ", S, D}),
+        false -> erlang:error({"Not matched: ", S, D}),
                 false
     end;
 
-is_eq({way, Id, Members, Attributes, Tags} = S, {way, Id, MembersR, AttributesR, TagsR} = D) ->
-    case ((Members == MembersR) andalso
-          is_eq_tuples(Attributes, AttributesR) andalso
-          is_eq_tuples(Tags, TagsR)) of
+is_eq(#way{id = Id} = S, #way{id = Id} = D) ->
+    case ((tuple_to_gen_list(S#way{tags=[]}) == tuple_to_gen_list(D#way{tags = []})) andalso
+          is_eq_tuples(S#way.tags, D#way.tags)) of
         true -> true;
         false -> erlang:error({"Not matched: ", S, D}),
                  false
     end;
 
-is_eq({relation, Id, Items, Attributes, Tags} = S, {relation, Id, ItemsR, AttributesR, TagsR} = D) ->
-    case (is_eq_tuples(Items, ItemsR) andalso
-          is_eq_tuples(Attributes, AttributesR) andalso
-          is_eq_tuples(Tags, TagsR)) of
+is_eq(#relation{id = Id} = S, #relation{id = Id} = D) ->
+    case (tuple_to_gen_list(S#relation{tags = [], members = []}) ==
+          tuple_to_gen_list(D#relation{tags=[], members = []})) andalso
+        is_eq_tuples(S#relation.members, D#relation.members) andalso
+        is_eq_tuples(S#relation.tags, D#relation.tags) of
         true -> true;
         false -> erlang:error({"Not matched: ", S, D}),
                  false
@@ -186,36 +184,37 @@ check_simple_process(Config) when is_list(Config) ->
     assert_exists(Nodes, {relation, 1}),
 
     % Check nodes structure
-    assert_exists(Nodes, {node, 1, {0, 0}, [{version, 1},
-                                            {changeset, 440330},
-                                            {user, "smsm1"},
-                                            {uid, 6871},
-                                            {visible, true},
-                                            {timestamp, "2008-12-17T01:18:42Z"}
-                                           ], []}),
+    assert_exists(Nodes, #node{id = 1, x = 0, y = 0,
+                               version = 1,
+                               changeset = 440330,
+                               user = "smsm1",
+                               uid = 6871,
+                               timestamp =  "2008-12-17T01:18:42Z",
+                              tags = []}),
 
-    assert_exists(Nodes, {way, 1, [1, 2, 3, 1], [{version, 3},
-                                                 {changeset, 1368552},
-                                                 {user, "Matt"},
-                                                 {uid, 70},
-                                                 {visible, true},
-                                                 {timestamp, "2009-05-31T13:39:15Z"}
-                                                ], [
-                                                    {access, private},
-                                                    {highway, service}
-                                                   ]}),
-    assert_exists(Nodes, {relation, 1, [{way, 1, ""}],
-                          [{version, 1},
-                           {changeset, 3364749},
-                           {user, "DSem"},
-                           {uid, 118927},
-                           {timestamp, "2009-12-13T17:06:48Z"}
-                          ], [
-                              {admin_level, 8},
-                              {boundary, administrative},
-                              {name, "Warsaw"},
-                              {type, boundary}
-                             ]}),
+    assert_exists(Nodes, #way{id = 1, nodes = [1, 2, 3, 1],
+                              version = 3,
+                              changeset =  1368552,
+                              user = "Matt",
+                              uid = 70,
+                              timestamp = "2009-05-31T13:39:15Z",
+                              tags = [
+                                      {access, private},
+                                      {highway, service}
+                                     ]}),
+    assert_exists(Nodes, #relation{id = 1,
+                                   members = [{way, 1, ""}],
+                                   version = 1,
+                                   changeset = 3364749,
+                                   user = "DSem",
+                                   uid = 118927,
+                                   timestamp = "2009-12-13T17:06:48Z",
+                                   tags = [
+                                           {admin_level, 8},
+                                           {boundary, administrative},
+                                           {name, "Warsaw"},
+                                           {type, boundary}
+                                          ]}),
     ok.
 
 check_complete_objects_process() ->
@@ -235,30 +234,31 @@ check_complete_objects_process(Config) when is_list(Config) ->
     assert_exists(Nodes, {relation, 4}),
 
     % Check if way contains all nodes printed
-    assert_exists(Nodes, {way, 1, [1, 2, 3, 4, 1], [{version, 3},
-                                                    {changeset, 1368552},
-                                                    {user, "Matt"},
-                                                    {uid, 70},
-                                                    {visible, true},
-                                                    {timestamp, "2009-05-31T13:39:15Z"}
-                                                   ], [
-                                                       {access, private},
-                                                       {highway, service}
-                                                      ]}),
-    assert_exists(Nodes, {relation, 1, [{way, 1, ""}],
-                          [{version, 1},
-                           {changeset, 3364749},
-                           {user, "DSem"},
-                           {uid, 118927},
-                           {timestamp, "2009-12-13T17:06:48Z"}
-                          ], [
-                              {admin_level, 8},
-                              {boundary, administrative},
-                              {name, "Warsaw"},
-                              {type, boundary}
-                             ]}),
+    assert_exists(Nodes, #way{id = 1, nodes = [1, 2, 3, 4, 1],
+                              version = 3,
+                              changeset =  1368552,
+                              user = "Matt",
+                              uid = 70,
+                              timestamp = "2009-05-31T13:39:15Z",
+                              tags = [
+                                      {access, private},
+                                      {highway, service}
+                                     ]}),
+    assert_exists(Nodes, #relation{id = 1,
+                                   members = [{way, 1, ""}],
+                                   version = 1,
+                                   changeset = 3364749,
+                                   user = "DSem",
+                                   uid = 118927,
+                                   timestamp = "2009-12-13T17:06:48Z",
+                                   tags = [
+                                           {admin_level, 8},
+                                           {boundary, administrative},
+                                           {name, "Warsaw"},
+                                           {type, boundary}
+                                          ]}),
 
-    assert_exists(Nodes, {relation, 2, [{node, 4, ""}], [], []}),
-    assert_exists(Nodes, {relation, 4, [{relation, 2, ""}], [], []}),
+    assert_exists(Nodes, #relation{id = 2, members = [{node, 4, ""}], tags = []}),
+    assert_exists(Nodes, #relation{id = 4, members = [{relation, 2, ""}], tags = []}),
     
     ok.

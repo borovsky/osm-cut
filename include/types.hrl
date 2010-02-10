@@ -37,21 +37,34 @@
 -record(node,
         {
           id = 0:: integer(),
-          position :: point(),
-          attributes :: attributes(),
+          x :: float(),
+          y :: float(),
+          version,
+          timestamp,
+          uid,
+          user,
+          changeset,
           tags :: tags()
          }).
 -record(way, {
           id = 0 :: integer(),
           nodes :: list(integer()),
-          attributes :: attributes(),
+          version,
+          timestamp,
+          uid,
+          user,
+          changeset,
           tags :: tags()
          }).
 
 -record(relation, {
           id = 0 :: integer(),
           members :: members(),
-          attributes :: attributes(),
+          version,
+          timestamp,
+          uid,
+          user,
+          changeset,
           tags :: tags()
           }).
 

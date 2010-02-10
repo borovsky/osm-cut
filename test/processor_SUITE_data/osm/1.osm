@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <osm version="0.6" generator="Hands">
-  <node id="1" lat="0" lon="0" version="1" changeset="440330" user="smsm1" uid="6871" visible="true" timestamp="2008-12-17T01:18:42Z"/>
-  <node id="2" lat="0" lon="5" version="1" changeset="440330" user="smsm1" uid="6871" visible="true" timestamp="2008-12-17T01:18:42Z"/>
-  <node id="3" lat="5" lon="10" version="3" changeset="2980587" user="nickb" uid="1697" visible="true" timestamp="2009-10-29T12:14:35Z">
+  <node id="1" lat="0" lon="0" version="1" changeset="440330" user="smsm1" uid="6871" timestamp="2008-12-17T01:18:42Z"/>
+  <node id="2" lat="0" lon="5" version="1" changeset="440330" user="smsm1" uid="6871" timestamp="2008-12-17T01:18:42Z"/>
+  <node id="3" lat="5" lon="10" version="3" changeset="2980587" user="nickb" uid="1697" timestamp="2009-10-29T12:14:35Z">
     <tag k="name" v="Jam's Sandwich Bar"/>
     <tag k="amenity" v="cafe"/>
   </node>
-  <node id="4" lat="10" lon="10" version="2" changeset="388960" user="BiIbo" uid="3516" visible="true" timestamp="2009-02-13T00:41:47Z">
+  <node id="4" lat="10" lon="10" version="2" changeset="388960" user="BiIbo" uid="3516" timestamp="2009-02-13T00:41:47Z">
     <tag k="barrier" v="gate"/>
   </node>
-  <node id="5" lat="10" lon="0" version="1" changeset="374143" user="Matt" uid="70" visible="true" timestamp="2008-10-16T16:35:57Z"/>
-  <node id="6" lat="15" lon="15" version="4" changeset="2114003" user="jamicu" uid="38244" visible="true" timestamp="2009-08-12T01:33:32Z"/>
+  <node id="5" lat="10" lon="0" version="1" changeset="374143" user="Matt" uid="70" timestamp="2008-10-16T16:35:57Z"/>
+  <node id="6" lat="15" lon="15" version="4" changeset="2114003" user="jamicu" uid="38244" timestamp="2009-08-12T01:33:32Z"/>
 
-  <way id="1" visible="true" timestamp="2009-05-31T13:39:15Z" version="3" changeset="1368552" user="Matt" uid="70">
+  <way id="1" timestamp="2009-05-31T13:39:15Z" version="3" changeset="1368552" user="Matt" uid="70">
     <nd ref="1"/>
     <nd ref="2"/>
     <nd ref="3"/>

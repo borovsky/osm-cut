@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(osm_process_non_complete).
 
--include("types.hrl").
+-include("../include/types.hrl").
 
 
 %% API
@@ -53,7 +53,7 @@ process_message(endDocument, #state{writer_module=Writer} = State) ->
     State;
 
 % node element
-process_message({node, Id, {X, Y}, _, _} = Element, #state{polygon_function = PolygonFunction,
+process_message(#node{id = Id, x = X, y = Y} = Element, #state{polygon_function = PolygonFunction,
          reduced_set = Set, writer_module = Writer} = State) ->
     case PolygonFunction(X, Y) of
         true ->
@@ -65,19 +65,19 @@ process_message({node, Id, {X, Y}, _, _} = Element, #state{polygon_function = Po
     end;
 
 %%way element
-process_message({way, Id, Nodes, Attributes, Tags}, #state{reduced_set = Set, writer_module = Writer} = State) ->
+process_message(#way{id = Id, nodes = Nodes} = Way, #state{reduced_set = Set, writer_module = Writer} = State) ->
     NodesInPolygon = lists:filter(fun(E) -> gb_sets:is_member({node, E}, Set) end, Nodes),
     case NodesInPolygon of
         [] ->
             State;
         List ->
             NewSet = gb_sets:add({way, Id}, Set),
-            Writer:write({way, Id, List, Attributes, Tags}),
+            Writer:write(Way#way{nodes = List}),
             State#state{reduced_set = NewSet}
     end;
 
 %% relation element
-process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = Set, writer_module = Writer} = State) ->
+process_message(#relation{id = Id, members = Members} = Relation, #state{reduced_set = Set, writer_module = Writer} = State) ->
     MembersInPolygon =
         lists:filter(fun({Type, MemberId, _}) ->
                              gb_sets:is_member({Type, MemberId}, Set) end,
@@ -87,7 +87,7 @@ process_message({relation, Id, Members, Attributes, Tags}, #state{reduced_set = 
             State;
         List ->
             NewSet = gb_sets:add({relation, Id}, Set),
-            Writer:write({relation, Id, List, Attributes, Tags}),
+            Writer:write(Relation#relation{members =  List}),
             State#state{reduced_set = NewSet}
     end;
 

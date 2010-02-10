@@ -60,7 +60,7 @@ process_message(#osm{} = Element, #state{writer_module=Writer} = State) ->
     State;
 
 % node element
-process_message(#node{id  = Id, position = {X, Y}} = Element,
+process_message(#node{id  = Id, x = X, y = Y} = Element,
                 #state{polygon_function = PolygonFunction,
                        reduced_set = Set,
                        writer_module = Writer,

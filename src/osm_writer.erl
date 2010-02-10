@@ -185,25 +185,57 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+-spec(xml_for_element(source_element()) -> iolist()).
 xml_for_element({osm, _Attributes, []} = Element) ->
     formatted_open_tag(Element);
 
 xml_for_element(endDocument) ->
     formatted_close_tag(osm);
 
-xml_for_element({node, Id, {X, Y}, Attributes, Tags}) ->
-    AllAttributes = [{id, Id}, {lon, X}, {lat, Y} | Attributes],
+xml_for_element(#node{id = Id,
+                      x = X,
+                      y = Y,
+                      version = Version,
+                      timestamp = Timestamp,
+                      uid = Uid,
+                      changeset = Changeset,
+                      user = User,
+                      tags = Tags}) ->
+    AllAttributes = [{id, Id}, {lon, X}, {lat, Y},
+                     {version, Version}, {timestamp, Timestamp},
+                     {uid, Uid}, {changeset, Changeset},
+                     {user, User}],
     TagXml = [{tag, [{k, K}, {v, V}], []} || {K, V} <- Tags],
     formatted_xml({node, AllAttributes, TagXml});
 
-xml_for_element({way, Id, Nodes, Attributes, Tags}) ->
-    AllAttributes = [{id, Id} | Attributes],
+xml_for_element(#way{id=Id,
+                     nodes = Nodes,
+                     version = Version,
+                     timestamp = Timestamp,
+                     uid = Uid,
+                     changeset = Changeset,
+                     user = User,
+                     tags = Tags}) ->
+    AllAttributes = [{id, Id},
+                     {version, Version}, {timestamp, Timestamp},
+                     {uid, Uid}, {changeset, Changeset},
+                     {user, User}],
     TagXml = [{tag, [{k, K}, {v, V}], []} || {K, V} <- Tags],
     ChildrenXml = way_tags_with_nodes(Nodes, TagXml),
     formatted_xml({way, AllAttributes, ChildrenXml});
 
-xml_for_element({relation, Id, Members, Attributes, Tags}) ->
-    AllAttributes = [{id, Id} | Attributes],
+xml_for_element(#relation{id = Id,
+                          members = Members,
+                          version = Version,
+                          timestamp = Timestamp,
+                          uid = Uid,
+                          changeset = Changeset,
+                          user = User,
+                          tags = Tags}) ->
+    AllAttributes = [{id, Id},
+                     {version, Version}, {timestamp, Timestamp},
+                     {uid, Uid}, {changeset, Changeset},
+                     {user, User}],
     TagXml = [{tag, [{k, K}, {v, V}], []} || {K, V} <- Tags],
     ChildrenXml = relation_tags_with_members(Members, TagXml),
     formatted_xml({relation, AllAttributes, ChildrenXml}).
