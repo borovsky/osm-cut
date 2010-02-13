@@ -37,6 +37,6 @@ main(SourceFile, PolygonFile, OutputFile, Options) ->
 %%--------------------------------------------------------------------
 -spec(process_file(string(), property_list()) -> ok).
 process_file(SourceFile, Options) ->
-    osm_parser:parse(SourceFile, Options),
+    osm_parser:parse(SourceFile),
     WriterModule = proplists:get_value(writer_module, Options, osm_writer),
     WriterModule:processing_result().

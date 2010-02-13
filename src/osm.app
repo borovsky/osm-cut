@@ -4,10 +4,12 @@
   {modules, [
              osm_application,
              osm_cut,
+             osm_node_storage,
              osm_parser,
              osm_process_complete,
              osm_process_non_complete,
              osm_processor,
+             osm_set,
              osm_supervisor,
              osm_utils,
              osm_writer,

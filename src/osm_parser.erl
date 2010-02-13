@@ -7,25 +7,23 @@
 
 -module(osm_parser).
 
--export([parse/2]).
+-export([parse/1]).
 
 -record(event_state, {
           level = -1,
           tag_stack = [],
           children_stack = [],
-          message_count = 0,
-          processor_module
+          processor_state = osm_processor:init_client():: tuple()
          }).
 
 -include("../include/types.hrl").
 
--spec(parse(string(), property_list()) -> any()).
-parse(SourceFile, Options) ->
-    ProcessorModule = proplists:get_value(processor_module, Options, osm_processor),
+-spec(parse(string()) -> any()).
+parse(SourceFile) ->
     Start = erlang:now(),
 
     {ok, File} = file:open(SourceFile, [read, raw, binary]),
-    erlsom:parse_sax(<<>>, #event_state{processor_module = ProcessorModule}, fun sax_callback/2,
+    erlsom:parse_sax(<<>>, #event_state{}, fun sax_callback/2,
                      [{continuation_function, fun continuation_reader/2, File}]),
     End = erlang:now(),
     io:format("Parse time: ~p~n", [timer:now_diff(End, Start)]).
@@ -90,52 +88,41 @@ sax_callback(Event, State) ->
     io:format("Unprocessed: ~p~n    ~p~n", [Event, State]),
     State.
 
-process_element({osm, _, _} = Element, State) ->
-    send_message(Element, State#event_state.processor_module, 1),
-    State;
+process_element({osm, _, _} = Element, #event_state{processor_state = ProcessorState} = State) ->
+    NewProcState = osm_processor:process(Element, ProcessorState),
+    State#event_state{processor_state = NewProcState};
 
 process_element({node, Attributes, Children},
-                #event_state{message_count = MessageCount,
-                             processor_module = Processor} = State) ->
+                #event_state{processor_state = ProcessorState} = State) ->
     Node = populate_node_attributes(#node{tags = encoded_tags(Children)}, Attributes),
-    send_message(Node, Processor, MessageCount),
-    State#event_state{message_count = MessageCount + 1};
+    NewProcState = osm_processor:process(Node, ProcessorState),
+    State#event_state{processor_state = NewProcState};
 
 process_element({way, Attributes, Children},
-                #event_state{message_count = MessageCount,
-                             processor_module = Processor} = State) ->
+                #event_state{processor_state = ProcessorState} = State) ->
 
     {Nodes, Tags} = classified_way_children(Children),
     Way = populate_way_attributes(#way{tags = encoded_tags(Tags), nodes = Nodes}, Attributes),
     
-    send_message(Way, Processor, MessageCount),
-    State#event_state{message_count = MessageCount + 1};
+    NewProcState = osm_processor:process(Way, ProcessorState),
+    State#event_state{processor_state = NewProcState};
 
 process_element({relation, Attributes, Children},
-                #event_state{message_count = MessageCount,
-                             processor_module = Processor} = State) ->
+                #event_state{processor_state = ProcessorState} = State) ->
     {Members, Tags} = classified_relation_children(Children),
 
     Relation = populate_relation_attributes(#relation{tags = encoded_tags(Tags), members = Members}, Attributes),
     
-    send_message(Relation, Processor, MessageCount),
-    State#event_state{message_count = MessageCount + 1};
+    NewProcState = osm_processor:process(Relation, ProcessorState),
+    State#event_state{processor_state = NewProcState};
 
-process_element(endDocument, State) ->
-    send_message(endDocument, State#event_state.processor_module, 0), % with synchronization
-    State;
+process_element(endDocument, #event_state{processor_state = ProcessorState} = State) ->
+    NewProcState = osm_processor:process(endDocument, ProcessorState),
+    State#event_state{processor_state = osm_processor:synchronize(NewProcState)};
 
 process_element(Element, State) ->
     io:format("Unprocessed element: ~p~n", [Element]),
     State.
-
--spec(send_message(source_element(), atom(), integer()) -> any()).
-send_message(Element, Processor, MessageCount) ->
-    Processor:process(Element),
-    case MessageCount rem 10000 of
-        0 -> Processor:synchronize();
-        _ -> ok
-    end.
 
 -spec(classified_way_children(simple_xml_tags()) -> {list(integer()), simple_xml_tags()}).
 classified_way_children(Children) ->

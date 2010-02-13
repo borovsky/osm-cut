@@ -13,7 +13,7 @@
 -include("types.hrl").
 
 %% API
--export([start_link/1, process/1, synchronize/0]).
+-export([start_link/1, init_client/0, process/2, synchronize/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -29,27 +29,62 @@
           writer_module
          }).
 
+-record(processor_buffer, {
+          buffer_size = 0 :: non_neg_integer(),
+          buffer = [] :: list(source_element()),
+          sends_count = 0:: non_neg_integer()
+         }).
+-define(PROCESSING_SIZE, 1000).
+-define(SENDS_BETWEEN_SYNC, 100).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @doc Processes OSM element
-%% @spec process(source_element()) -> any()
+%% @doc Initializes processor's client structure
+%% @spec init_client() -> #processor_buffer{}
 %% @end
 %%--------------------------------------------------------------------
--spec(process(source_element()) -> any()).
-process(Node) ->
-    gen_server:abcast(?SERVER, Node).
+-spec(init_client() -> #processor_buffer{}).
+init_client() ->
+    #processor_buffer{}.
+
+%%--------------------------------------------------------------------
+%% @doc Processes OSM element
+%% @spec process(source_element(), #processor_buffer{}) -> #processor_buffer{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(process(source_element(), #processor_buffer{}) -> #processor_buffer{}).
+process(Node, #processor_buffer{buffer_size = BufferSize,
+                                buffer = Buffer,
+                                sends_count = SendsCount} = Buf) ->
+    case BufferSize of
+        ?PROCESSING_SIZE ->
+            ToSend = lists:reverse([Node | Buffer]),
+            case SendsCount of %We should synchronize sometimes for avoid message query overflow
+                ?SENDS_BETWEEN_SYNC ->
+                    gen_server:call(?SERVER, ping, infinity),
+                    gen_server:abcast(?SERVER, ToSend),
+                    #processor_buffer{};
+                _ ->
+                    gen_server:abcast(?SERVER, ToSend),
+                    #processor_buffer{sends_count = SendsCount + 1}
+            end;
+        _ ->
+            Buf#processor_buffer{buffer = [Node | Buffer], buffer_size = BufferSize + 1}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc Synchronize processor with parser (for avoid message query overflow)
-%% @spec synchronize() -> any()
+%% @spec synchronize(#processor_buffer{}) -> #processor_buffer{}
 %% @end
 %%--------------------------------------------------------------------
--spec(synchronize() -> any()).
-synchronize() ->
-    gen_server:call(?SERVER, ping, infinity).
+-spec(synchronize(#processor_buffer{}) -> #processor_buffer{}).
+synchronize(#processor_buffer{buffer = Buffer}) ->
+    gen_server:abcast(?SERVER, lists:reverse(Buffer)),
+    gen_server:call(?SERVER, ping, infinity),
+    #processor_buffer{}.
 
 
 %%--------------------------------------------------------------------
@@ -140,10 +175,12 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_cast(source_element(), #state{}) -> {noreply, #state{}}).
+-spec(handle_cast(list(source_element()), #state{}) -> {noreply, #state{}}).
 handle_cast(Msg, #state{processor_module = ProcessorModule,
                         processor_state = ProcessorState} = State) ->
-    NewState = ProcessorModule:process_message(Msg, ProcessorState),
+    NewState = lists:foldl(fun(E, S) -> ProcessorModule:process_message(E, S) end,
+                           ProcessorState,
+                           Msg),
     {noreply, State#state{processor_state = NewState}}.
 
 %%--------------------------------------------------------------------

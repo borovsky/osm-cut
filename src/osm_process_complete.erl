@@ -96,9 +96,6 @@ process_message(#way{id = Id, nodes = Nodes} = Element,
 process_message(#way{} = Element,
                 #state{mode = nodes} = State) ->
     io:format("~p: nodes processed~n", [erlang:localtime()]),
-    io:format("  Set size: ~p~n", [erts_debug:size(State#state.reduced_set)]),
-    io:format("  Nodes size: ~p~n", [erts_debug:flat_size(State#state.stored_nodes)]),
-    io:format("  State size: ~p~n", [erts_debug:flat_size(State)]),
     process_message(Element, State#state{mode=ways});
 
 %% relation element
@@ -135,10 +132,6 @@ process_message(#relation{} = Msg,
                        ways_to_write = WaysToWrite,
                        nodes_to_write = NodesToWrite,
                        stored_nodes = StoredNodes} = State) ->
-    io:format("~p: ways processed~n", [erlang:localtime()]),
-    io:format("  Set size: ~p~n", [erts_debug:size(State#state.reduced_set)]),
-    io:format("  Nodes size: ~p~n", [erts_debug:flat_size(State#state.stored_nodes)]),
-    io:format("  State size: ~p~n", [erts_debug:flat_size(State)]),
     % Flush all collected nodes
     NewSet = osm_node_storage:fold(
                fun(#node{id = Id} = E, S) ->
@@ -158,6 +151,7 @@ process_message(#relation{} = Msg,
                             _ -> I + 1
                         end
                 end, 0, WaysToWrite),
+    io:format("~p: ways processed~n", [erlang:localtime()]),
     
     % Drop collected ways and nodes
     process_message(Msg, State#state{mode = relations,
