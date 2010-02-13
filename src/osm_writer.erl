@@ -253,11 +253,11 @@ relation_tags_with_members([{Type, Id, Role} | T], Children) ->
     relation_tags_with_members(T, [{member, [{type, Type}, {id, Id}, {role, Role}], []} | Children]).
 
 formatted_xml(Element) ->
-    simple_xml_formatter:formatted_xml(Element, 1).
+    osm_simple_xml_formatter:formatted_xml(Element, 1).
 
 formatted_open_tag({Tag, Attributes, _Children}) ->
-    simple_xml_formatter:open_tag(Tag, Attributes, 0).
+    osm_simple_xml_formatter:open_tag(Tag, Attributes, 0).
 
 formatted_close_tag(Tag) ->
-    simple_xml_formatter:close_tag(Tag, 0).
+    osm_simple_xml_formatter:close_tag(Tag, 0).
 

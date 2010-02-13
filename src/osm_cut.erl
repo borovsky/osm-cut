@@ -18,7 +18,7 @@
 %%--------------------------------------------------------------------
 -spec(main(string(), string(), string(), property_list()) -> any()).
 main(SourceFile, PolygonFile, OutputFile, Options) ->
-    Polygon = polygon_compiler:compile_polygon(PolygonFile, Options),
+    Polygon = osm_polygon_compiler:compile_polygon(PolygonFile, Options),
 
     OsmOptions = [{source_file, SourceFile}, {polygon, Polygon}, {output_file, OutputFile} | Options],
     

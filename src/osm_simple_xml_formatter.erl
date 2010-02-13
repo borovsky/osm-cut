@@ -4,7 +4,7 @@
 %%%
 %%% @end
 %%% Created : 19 Jan 2010 by Alexander Borovsky <aborovsky@exadel.com>
--module(simple_xml_formatter).
+-module(osm_simple_xml_formatter).
 
 -export([open_to_write/1, formatted_xml/1, formatted_xml/2, open_tag/3, close/1, close_tag/2]).
 

@@ -5,7 +5,7 @@
 %%% @end
 %%% Created :  8 Jan 2010 by Alexander Borovsky <alex.borovsky@gmail.com>
 
--module(polygon_compiler).
+-module(osm_polygon_compiler).
 
 -export([compile_polygon/2, compile/1]).
 -include("types.hrl").
@@ -22,7 +22,7 @@ compile_polygon(SourceFile, _Options) ->
     io:get_line(File, ""), %Ignore first line
     Polygons = read_polygons(File, []),
     file:close(File),
-    polygon_compiler:compile(Polygons).
+    compile(Polygons).
 
 
 %%--------------------------------------------------------------------

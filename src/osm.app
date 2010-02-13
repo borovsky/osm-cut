@@ -13,8 +13,8 @@
              osm_supervisor,
              osm_utils,
              osm_writer,
-             polygon_compiler,
-             simple_xml_formatter
+             osm_polygon_compiler,
+             osm_simple_xml_formatter
              ]},
   {applications, [kernel, stdlib]},
   {mod, {osm_application, []}},
