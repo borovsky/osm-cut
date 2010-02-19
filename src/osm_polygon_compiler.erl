@@ -11,13 +11,15 @@
 -include("types.hrl").
 -include_lib("kernel/include/file.hrl").
 
-
+% Bounding box
 -record(bounding_box, {
           xmin = 0.0 :: float(), 
           ymin = 0.0 :: float(),
           xmax = 0.0 :: float(), 
           ymax = 0.0 :: float()
          }).
+
+% Polygon edge
 -record(interval, {
           bounding_box = #bounding_box{} :: #bounding_box{},
           a = 0.0 :: float(), %A * X + B * Y + C = 0  for all points in interval
@@ -25,12 +27,14 @@
           c = 0.0 :: float()}).
 -type(intervals() :: list(#interval{})).
 
+% Projection of edge to axis X or Y
 -type(interval_1d() :: {float(), float()}).
 -type(intervals_1d() :: [interval_1d()]).
 
 
 -type(side() :: left | right | top | bottom).
 
+% Internal (compile time) data
 -record(geotree_compile_data, {
           bbox = #bounding_box{} :: #bounding_box{},
           in = [] :: intervals(),
@@ -45,6 +49,7 @@
           level = 0
          }).
 
+% Leaf of geo tree
 -record(geotree_leaf, {
           side = left :: side(),
           counted = 0 :: non_neg_integer(),
@@ -52,6 +57,7 @@
           side_intervals :: intervals_1d() % List of intervals in projection to X/Y axis
          }).
 
+% Branch of geotree
 -record(geotree_branch, {
           left_top :: #geotree_leaf{} | {geotree_branch | geotree_leaf, any(), any(), any(), any()} | in, %tree_part() 
           left_bottom :: #geotree_leaf{} | {geotree_branch | geotree_leaf, any(), any(), any(), any()}| in, %tree_part() 
@@ -59,9 +65,9 @@
           right_bottom :: #geotree_leaf{} | {geotree_branch | geotree_leaf, any(), any(), any(), any()}| in %tree_part() 
          }).
 
-
 -type(geotree_part() :: #geotree_leaf{} | #geotree_branch{} | in | out).
 
+% Geotree root
 -record(geotree_root, {
           bbox :: #bounding_box{},
           inner_tree :: geotree_part()
@@ -187,7 +193,7 @@ compile_polygon({_,PrePoints}) ->
     fun(X, Y) -> is_point_in(Tree, X, Y) end.
 
 %%--------------------------------------------------------------------
-%% @doc Checks if polygon in
+%% @doc Checks if polygon in geotree
 %% @spec is_point_in(#geotree_root{}, float(), float()) -> boolean()
 %% @end
 %%--------------------------------------------------------------------
@@ -199,14 +205,17 @@ is_point_in(#geotree_root{bbox = BBox,
        _ -> false
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if polygon in geotree part
+%% @spec is_point_in(geotree_part(), #bounding_box{}, float(), float()) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
 -spec(is_point_in(geotree_part(), #bounding_box{}, float(), float()) ->
              boolean()).
 is_point_in(in, _, _, _) ->
-    %io:format("in~n"), 
     true;
 
 is_point_in(out, _, _, _) ->
-    %io:format("out~n"), 
     false;
 
 % going down by tree
@@ -260,7 +269,7 @@ is_point_in(#geotree_leaf{side = Side,
     case count_inside_intersects(Side, InIntervals, X, Y) of
         on -> true;
         Cin ->
-            % Calculate count of outside intervals at left/right on node
+            % Calculate count of outside intervals at top/bottom on node
             Cout = lists:foldl(fun({Xmin, Xmax}, S) ->
                                        case Xmin =< X andalso X < Xmax of
                                            true -> S + 1;
@@ -273,6 +282,11 @@ is_point_in(D, _, _, _) ->
     io:format("Error: ~p", [D]),
     false.
 
+%%--------------------------------------------------------------------
+%% @doc Creates geotree from list of points
+%% @spec geotree_for_points(points()) -> #geotree_root{}
+%% @end
+%%--------------------------------------------------------------------
 -spec(geotree_for_points(points()) -> #geotree_root{}).
 geotree_for_points(Points) ->
     Intervals = points_to_intervals(Points),
@@ -281,22 +295,24 @@ geotree_for_points(Points) ->
     #geotree_root{bbox = BBox, inner_tree = InnerTree}.
 
 
-% If we have no intervals inside, so current box filly inside or outside
+%%--------------------------------------------------------------------
+%% @doc Creates geotree structure from list of intervals
+%% @spec geotree_for(#geotree_compile_data{}) -> geotree_part()
+%% @end
+%%--------------------------------------------------------------------
 -spec(geotree_for(#geotree_compile_data{}) -> geotree_part()).
-% We reached max tree level. Create leaf with minimal check efforts
+% If we have no intervals inside, so current box fully inside or outside
 geotree_for(#geotree_compile_data{in = [],
                                   bbox = #bounding_box{xmin = Xmin, ymin = Ymin}} = Data) ->
     case is_inside(Data, Xmin, Ymin) of
         true ->
-            io:format(string:copies("i", 1 bsl (?MAX_TREE_LEVEL - Data#geotree_compile_data.level))),
             in;
         false ->
-            io:format(string:copies("o", 1 bsl (?MAX_TREE_LEVEL - Data#geotree_compile_data.level))),
             out
     end;
 
+% We reached max tree level. Create leaf with minimal check efforts
 geotree_for(#geotree_compile_data{level = ?MAX_TREE_LEVEL} = Data) ->
-    io:format("?"),
     geotree_leaf_for(Data);
 
 geotree_for(#geotree_compile_data{bbox = #bounding_box{
@@ -306,10 +322,10 @@ geotree_for(#geotree_compile_data{bbox = #bounding_box{
                                     ymax = Ymax},
                                   in = In} = Data) ->
     case length(In) =< ?MAX_INT_INTERVALS_PER_LEAF of
-        true ->
+        true -> % Too small count of intervals inside, so creating leaf
             io:format(string:copies("?", 1 bsl (?MAX_TREE_LEVEL - Data#geotree_compile_data.level))),
             geotree_leaf_for(Data);
-        false ->
+        false -> % Let's split this branch to 4 subbranches
             Xs = (Xmin + Xmax) / 2,
             Ys = (Ymin + Ymax) / 2,
             #geotree_branch{left_top = geotree_for(reduce_for_subtree(Data, Xmin, Ys, Xs, Ymax)),
@@ -318,15 +334,33 @@ geotree_for(#geotree_compile_data{bbox = #bounding_box{
                             right_bottom = geotree_for(reduce_for_subtree(Data, Xs, Ymin, Xmax, Ys))}
         end.
 
+%%--------------------------------------------------------------------
+%% @doc Creates geotree leaf from branch's data (optimized for future search)
+%% @spec geotree_leaf_for(#geotree_compile_data{}) -> #geotree_leaf{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(geotree_leaf_for(#geotree_compile_data{}) -> #geotree_leaf{}).             
 geotree_leaf_for(#geotree_compile_data{in = In} = Data) ->
-    {Side, Intervals, CountFull} = select_minimal_side(Data),
+    {Side, Intervals, CountFull} = select_minimal_side(Data), % Selecting minimal side for quick search in future
     InUpd = in_intervals_for_ray(Side, In),
     #geotree_leaf{side = Side, counted = CountFull, in_intervals = InUpd, side_intervals = Intervals}.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if point inside or outside polygon (based on branch compile info)
+%% @spec is_inside(#geotree_compile_data{}, float(), float()) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_inside(#geotree_compile_data{}, float(), float()) -> boolean()).
 is_inside(#geotree_compile_data{} = Data, X, Y) ->
     {Side, Intervals, CountFull} = select_minimal_side(Data),
     (count_at_side(Side, Intervals, X, Y) + CountFull) rem 2 == 1.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if point inside bounding box
+%% @spec is_inside_bbox(#bounding_box{}, float(), float()) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_inside_bbox(#bounding_box{}, float(), float()) -> boolean()).
 is_inside_bbox(#bounding_box{
                             xmin = Xmin,
                             ymin = Ymin,
@@ -335,6 +369,12 @@ is_inside_bbox(#bounding_box{
                            }, X, Y) ->
     X >= Xmin andalso X =< Xmax andalso Y >= Ymin andalso Y =< Ymax.
 
+%%--------------------------------------------------------------------
+%% @doc Selected side with minimal future search efforts (with minimal size)
+%% @spec select_minimal_side(#geotree_compile_data{}) ->
+%%           {side(), intervals_1d(), non_neg_integer()}
+%% @end
+%%--------------------------------------------------------------------
 -spec(select_minimal_side(#geotree_compile_data{}) ->
              {side(), intervals_1d(), non_neg_integer()}).
 select_minimal_side(#geotree_compile_data{at_left = AtLeft, full_at_left = FullAtLeft,
@@ -354,6 +394,11 @@ select_minimal_side({_, Intervals1, _} = S1,
        true -> S2
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Optimizes data structure for subbranch
+%% @spec reduce_for_subtree(#geotree_compile_data{}, float(), float(), float(), float()) -> #geotree_compile_data{}
+%% @end
+%%--------------------------------------------------------------------
 -spec(reduce_for_subtree(#geotree_compile_data{}, float(), float(), float(), float()) -> #geotree_compile_data{}).
 reduce_for_subtree(#geotree_compile_data{level = Level,
                                          at_left = AtLeft, full_at_left = FullAtLeft,
@@ -376,6 +421,14 @@ reduce_for_subtree(#geotree_compile_data{level = Level,
                                 },
     reduce_internal_intervals(In, Base).
 
+%%--------------------------------------------------------------------
+%% @doc Recalculates subbranch side information (full_at_side nodes, full_outside nodes)
+%% @spec reduce_side(float(), float(), intervals_1d(), non_neg_integer()) ->
+%%         {intervals_1d(), non_neg_integer()}
+%% @end
+%%--------------------------------------------------------------------
+-spec(reduce_side(float(), float(), intervals_1d(), non_neg_integer()) ->
+             {intervals_1d(), non_neg_integer()}).
 reduce_side(BlockMin, BlockMax, List, FullCount) ->
     lists:foldl(fun({Min, Max} = E, {L, C} = S) ->
                         case Max < BlockMin orelse BlockMax =< Min of % Out of side
@@ -391,6 +444,16 @@ reduce_side(BlockMin, BlockMax, List, FullCount) ->
                 end, {[], FullCount}, List),
     {List, FullCount}.
 
+%%--------------------------------------------------------------------
+%% @doc Checks intervals inside parent branch, calculates which of them
+%% will be at side on branch, which in branch and which outside.
+%% Fills compile data structure.
+%% @spec reduce_internal_intervals(intervals(), #geotree_compile_data{}) ->
+%%            #geotree_compile_data{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(reduce_internal_intervals(intervals(), #geotree_compile_data{}) ->
+              #geotree_compile_data{}).
 reduce_internal_intervals([#interval{bounding_box = #bounding_box{xmin = Xmin, ymin = Ymin,
                                                                   xmax = Xmax, ymax = Ymax}} = H | T],
                           #geotree_compile_data{bbox = BBox} = D) ->
@@ -435,6 +498,11 @@ reduce_internal_intervals([#interval{bounding_box = #bounding_box{xmin = Xmin, y
 reduce_internal_intervals([], D) ->
     D.
 
+%%--------------------------------------------------------------------
+%% @doc Classify interval position to bounding box.
+%% @spec classify_interval(#bounding_box{}, #interval{}) -> list(atom()) | in | out
+%% @end
+%%--------------------------------------------------------------------
 -spec(classify_interval(#bounding_box{}, #interval{}) -> list(atom()) | in | out).
 classify_interval(BBox, I) ->
     case could_be_intersected_by_ray(BBox, I#interval.bounding_box) of
@@ -469,6 +537,12 @@ classify_interval(BBox, I) ->
             end
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval and bounding box intersecs
+%% @spec is_intersects(#bounding_box{}, #interval{}) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_intersects(#bounding_box{}, #interval{}) -> boolean()).
 is_intersects(#bounding_box{xmin = Xmin,
                             ymin = Ymin,
                             xmax = Xmax,
@@ -480,6 +554,13 @@ is_intersects(#bounding_box{xmin = Xmin,
     % Simple, not accurate,... but work
     Xmin >= IXmax andalso IXmin > Xmax andalso (Ymin >= IYmin andalso IYmin > Ymax).
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval at top of bounding box
+%%   (returns full if in completly overlaps it)
+%% @spec is_at_top(#bounding_box{}, #interval{}) -> boolean() | full
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_at_top(#bounding_box{}, #interval{}) -> boolean() | full).
 is_at_top(#bounding_box{xmin = Xmin,
                         xmax = Xmax,
                         ymax = Ymax
@@ -499,6 +580,13 @@ is_at_top(#bounding_box{xmin = Xmin,
         true -> false
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval at bottom of bounding box
+%%   (returns full if in completly overlaps it)
+%% @spec is_at_bottom(#bounding_box{}, #interval{}) -> boolean() | full
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_at_bottom(#bounding_box{}, #interval{}) -> boolean() | full).
 is_at_bottom(#bounding_box{xmin = Xmin,
                            ymin = Ymin,
                            xmax = Xmax,
@@ -519,6 +607,13 @@ is_at_bottom(#bounding_box{xmin = Xmin,
         true -> false
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval at left of bounding box
+%%   (returns full if in completly overlaps it)
+%% @spec is_at_left(#bounding_box{}, #interval{}) -> boolean() | full
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_at_left(#bounding_box{}, #interval{}) -> boolean() | full).
 is_at_left(#bounding_box{xmin = Xmin,
                          ymin = Ymin,
                          xmax = _Xmax,
@@ -539,6 +634,13 @@ is_at_left(#bounding_box{xmin = Xmin,
         true -> false
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval at right of bounding box
+%%   (returns full if in completly overlaps it)
+%% @spec is_at_right(#bounding_box{}, #interval{}) -> boolean() | full
+%% @end
+%%--------------------------------------------------------------------
+-spec(is_at_right(#bounding_box{}, #interval{}) -> boolean() | full).
 is_at_right(#bounding_box{xmin = _Xmin,
                           ymin = Ymin,
                           xmax = Xmax,
@@ -559,6 +661,13 @@ is_at_right(#bounding_box{xmin = _Xmin,
         true -> false
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Checks if interval's bounding box could be intersected by
+%% horizontal / vertical ray from bounding box' point
+%% @spec could_be_intersected_by_ray(#bounding_box{}, #bounding_box{}) -> boolean()
+%% @end
+%%--------------------------------------------------------------------
+-spec(could_be_intersected_by_ray(#bounding_box{}, #bounding_box{}) -> boolean()).
 could_be_intersected_by_ray(#bounding_box{xmin = Xmin,
                                           ymin = Ymin,
                                           xmax = Xmax,
