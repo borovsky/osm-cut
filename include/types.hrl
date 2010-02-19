@@ -74,4 +74,4 @@
       #relation{} |
       endDocument).
 
--type(osm_set() :: {set, gb_set(), gb_set(), gb_set()}).
+-type(osm_set() :: {set, gb_tree(), gb_tree(), gb_tree()}).

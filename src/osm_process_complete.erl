@@ -22,7 +22,7 @@
           stored_nodes, % Nodes not written, but stored for way processing
           mode = nodes :: nodes | ways | relations, % current mode: nodes, ways or relations
           writer_module :: atom(), % Module for write result
-          ways_to_write :: list(source_element()), % Ways that should be written when we spot first relation
+          ways_to_write, % Ways that should be written when we spot first relation
           nodes_to_write = gb_sets:new() :: gb_set(), % Set of nodes for writ (but outside poligon)
           stored_relations, % List of relations for future processing
           relations_to_search = [], % List of relations that included because they have selected nodes / ways
@@ -87,7 +87,7 @@ process_message(#way{id = Id, nodes = Nodes} = Element,
         NodesOut ->
             NewState = calculate_nodes_to_write(State, NodesOut),
             NewSet = osm_set:add({way, Id}, Set),
-            NewWaysToWrite = [Element | WaysToWrite],
+            NewWaysToWrite = osm_node_storage:add(Element, WaysToWrite),
             NewState#state{reduced_set = NewSet,
                            ways_to_write = NewWaysToWrite,
                            mode = ways}
@@ -96,7 +96,8 @@ process_message(#way{id = Id, nodes = Nodes} = Element,
 process_message(#way{} = Element,
                 #state{mode = nodes} = State) ->
     io:format("~p: nodes processed~n", [erlang:localtime()]),
-    process_message(Element, State#state{mode=ways});
+    process_message(Element, State#state{mode=ways,
+                                         ways_to_write = osm_node_storage:create("ways")});
 
 %% relation element
 process_message(#relation{id = Id,
@@ -143,20 +144,20 @@ process_message(#relation{} = Msg,
                        end end, ReducedSet, StoredNodes),
     
     % Flush collected ways: we processed all of them
-    lists:foldl(fun(E, I) ->
+    osm_node_storage:fold(fun(E, I) ->
                         Writer:write(E),
                         case I rem 1000 of
                             0 -> Writer:synchronize(),
                                  0;
                             _ -> I + 1
                         end
-                end, 0, WaysToWrite),
+                           end, 0, WaysToWrite),
     io:format("~p: ways processed~n", [erlang:localtime()]),
     
     % Drop collected ways and nodes
     process_message(Msg, State#state{mode = relations,
                                      stored_nodes = osm_node_storage:close(StoredNodes),
-                                     ways_to_write = [],
+                                     ways_to_write = osm_node_storage:close(WaysToWrite),
                                      links_to_parent = gb_trees:empty(),
                                      stored_relations = osm_node_storage:create("relations"),
                                      reduced_set = NewSet});

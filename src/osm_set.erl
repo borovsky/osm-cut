@@ -12,9 +12,9 @@
 -export([empty/0, add/2, is_member/2]).
 
 -record(set, {
-          nodes :: gb_set(),
-          ways :: gb_set(),
-          relations :: gb_set()
+          nodes :: gb_tree(),
+          ways :: gb_tree(),
+          relations :: gb_tree()
           }).
 
 %%%===================================================================
@@ -28,9 +28,9 @@
 %%--------------------------------------------------------------------
 -spec(empty() -> #set{}).
 empty() ->
-    #set{ways = gb_sets:new(),
-         nodes = gb_sets:new(),
-         relations = gb_sets:new()}.
+    #set{ways = osm_bit_set:empty(),
+         nodes = osm_bit_set:empty(),
+         relations = osm_bit_set:empty()}.
 
 %%--------------------------------------------------------------------
 %% @doc Adds OSM node to set
@@ -39,13 +39,13 @@ empty() ->
 %%--------------------------------------------------------------------
 -spec(add({node | way | relation, integer()}, #set{}) -> #set{}).
 add({node, Id}, #set{nodes = Nodes} = Set) ->
-    Set#set{nodes = gb_sets:add(Id, Nodes)};
+    Set#set{nodes = osm_bit_set:add(Id, Nodes)};
 
 add({way, Id}, #set{ways = Ways} = Set) ->
-    Set#set{ways = gb_sets:add(Id, Ways)};
+    Set#set{ways = osm_bit_set:add(Id, Ways)};
 
 add({relation, Id}, #set{relations = Relations} = Set) ->
-    Set#set{relations = gb_sets:add(Id, Relations)}.
+    Set#set{relations = osm_bit_set:add(Id, Relations)}.
 
 %%--------------------------------------------------------------------
 %% @doc Checks if OSM node in set
@@ -54,10 +54,10 @@ add({relation, Id}, #set{relations = Relations} = Set) ->
 %%--------------------------------------------------------------------
 -spec(is_member({node | way | relation, integer()}, #set{}) -> boolean()).
 is_member({node, Id}, #set{nodes = Nodes}) ->
-    gb_sets:is_member(Id, Nodes);
+    osm_bit_set:is_member(Id, Nodes);
 
 is_member({way, Id}, #set{ways = Ways}) ->
-    gb_sets:is_member(Id, Ways);
+    osm_bit_set:is_member(Id, Ways);
 
 is_member({relation, Id}, #set{relations = Relations}) ->
-    gb_sets:is_member(Id, Relations).
+    osm_bit_set:is_member(Id, Relations).
