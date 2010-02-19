@@ -6,13 +6,12 @@
 %%% Created :  8 Jan 2010 by Alexander Borovsky <alex.borovsky@gmail.com>
 
 -type(point() :: {float(), float()}).
+-type(points() :: list(point())).
 
 -type(polygon_def() :: {include | exclude, [point()]}).
 -type(polygon_list() :: list(polygon_def())).
 
 -type(polygon_function() ::fun((float(), float()) -> boolean())).
-
--type(interval() :: {{float(), float(), float()}, float(), float()} | {float(), float(), float()}).
 
 -type(property() :: tuple() | atom()).
 -type(property_list() :: list(property())).

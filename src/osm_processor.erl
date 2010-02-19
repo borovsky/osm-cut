@@ -34,8 +34,8 @@
           buffer = [] :: list(source_element()),
           sends_count = 0:: non_neg_integer()
          }).
--define(PROCESSING_SIZE, 1000).
--define(SENDS_BETWEEN_SYNC, 100).
+-define(PROCESSING_SIZE, 100).
+-define(SENDS_BETWEEN_SYNC, 10).
 
 %%%===================================================================
 %%% API

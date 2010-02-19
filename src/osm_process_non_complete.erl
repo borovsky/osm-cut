@@ -8,8 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(osm_process_non_complete).
 
--include("../include/types.hrl").
-
+-include("types.hrl").
 
 %% API
 -export([init/1, process_message/2]).

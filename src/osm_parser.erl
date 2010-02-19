@@ -16,7 +16,7 @@
           processor_state = osm_processor:init_client():: tuple()
          }).
 
--include("../include/types.hrl").
+-include("types.hrl").
 
 -spec(parse(string()) -> any()).
 parse(SourceFile) ->

@@ -93,7 +93,15 @@ end_per_testcase(_TestCase, _Config) ->
 all() ->
     [check_bounding_box,
      check_convex_polygon,
-     check_non_convex_polygon].
+     check_non_convex_polygon,
+     check_osm_poly].
+
+check_polygon(CheckFun, List) ->
+    F1 = osm_polygon_compiler:compile([{include, List}]),
+    CheckFun(F1),
+    F2 = osm_polygon_compiler:compile([{include, lists:reverse(List)}]),
+    CheckFun(F2),
+    ok.
 
 %% Test cases starts here.
 %%--------------------------------------------------------------------
@@ -101,43 +109,64 @@ check_bounding_box() ->
     [{doc, "Checks poligon by bounding box"}].
 
 check_bounding_box(Config) when is_list(Config) ->
-    Fun = osm_polygon_compiler:compile([{include, [{0, 0}, {10, 0}, {10, 10}, {0, 10}]}]),
-
-    true = Fun(5, 5),
-    true = Fun(0, 0),
-    true = Fun(10, 5),
-
-    false = Fun(-5, 0),
-    false = Fun(15, 5),
-    false = Fun(5, -5),
-    false = Fun(5, 15),
-    ok.
+    check_polygon(fun(Fun) ->
+                          true = Fun(5, 5),
+                          true = Fun(0, 0),
+                          true = Fun(10, 5),
+                          
+                          false = Fun(-5, 0),
+                          false = Fun(15, 5),
+                          false = Fun(5, -5),
+                          false = Fun(5, 15)
+                  end, [{0, 0}, {10, 0}, {10, 10}, {0, 10}]).
 
 
 check_convex_polygon() ->
     [{doc, "Checks convex poligon"}].
 
 check_convex_polygon(Config) when is_list(Config) ->
-    Fun = osm_polygon_compiler:compile([{include, [{0, 0}, {10, 0}, {10, 10}]}]),
-
-    true = Fun(0, 0),
-    true = Fun(5, 5),
-    true = Fun(3, 3),
-    false = Fun(0, 10),
-    false = Fun(3, 7),
-    
-    ok.
+    check_polygon(fun(Fun) ->
+                          true = Fun(0, 0),
+                          true = Fun(5, 5),
+                          true = Fun(3, 3),
+                          false = Fun(0, 10),
+                          false = Fun(3, 7)
+                  end, [{0, 0}, {10, 0}, {10, 10}]).
 
 check_non_convex_polygon() ->
     [{doc, "Checks convex poligon"}].
 
 check_non_convex_polygon(Config) when is_list(Config) ->
-    Fun = osm_polygon_compiler:compile([{include, [{-5, 0}, {5, 0}, {-5, 10}, {5, 10}]}]),
+    check_polygon(fun(Fun) ->
+                          true = Fun(0, 0), % on
+                          true = Fun(0, 5), % on vertex
+                          true = Fun(1, 3), % inside
+                          false = Fun(1, 5),
+                          false = Fun(10, 7)
+                  end, [{-5, 0}, {5, 0}, {-5, 10}, {5, 10}]).
 
-    true = Fun(0, 0),
-    true = Fun(0, 5),
-    true = Fun(1, 3),
-    false = Fun(1, 5),
-    false = Fun(10, 7),
-    
-    ok.
+check_osm_poly() ->
+    [{doc, "Checks convex poligon"}].
+
+check_osm_poly(Config) when is_list(Config) ->
+    check_polygon(fun(Fun) ->
+                          true = Fun(0, 0), % on
+                          true = Fun(5, 0), % on 
+                          true = Fun(10, 5), % on
+                          false = Fun(10, 10),
+                          false = Fun(0, 10),
+                          false = Fun(9, 0),
+                          false = Fun(9.75, 4.9),
+                          true = Fun(9.8, 4.9),
+                          true = Fun(9.85, 4.9),
+                          true = Fun(9.9, 4.9),
+                          false = Fun(9.95, 4.9),
+                          false = Fun(10, 4.9),
+                          false = Fun(10, 0),
+                          false = Fun(15, 5),
+                          true = Fun(0.3, 0.1),
+                          false = Fun(0.3, 0.4),
+                          true = Fun(5, 0.01),
+                          false = Fun(5.1, 0.01),
+                          true = Fun(4.7, 0.01)
+                  end, [{0, 0}, {5, 0}, {10, 5}]).

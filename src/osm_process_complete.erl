@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 -module(osm_process_complete).
 
--include("../include/types.hrl").
+-include("types.hrl").
 
 
 %% API
@@ -71,7 +71,7 @@ process_message(#node{id  = Id, x = X, y = Y} = Element,
             NewSet = osm_set:add({node, Id}, Set),
             Writer:write(Element),
             State#state{reduced_set = NewSet};
-        _ ->
+        false ->
             NewNodeSet = osm_node_storage:add(Element, NodeSet),
             State#state{stored_nodes = NewNodeSet}
     end;
