@@ -2,8 +2,16 @@ Name: Alexander Borovsky
 Task: geo
 Level: 4
 Language: Erlang
-Work: 9
-Duration: 3
+Work: 48
+Duration: 4 days for level 4 + 5 days for optimization
+
+Includes erlsom XML parser (http://erlsom.sourceforge.net/)
+
+1) call ./build.sh
+2) than you can use cut.escript for cut osm map
+
+Better work on multicore computers
+Require near 300 Mb RAM on 32 bit system for russia.poly
 
 Time Sheet:
 2 weeks of planing and writing prototypes (only simple_xml_writer module used from them)
@@ -25,3 +33,13 @@ Feb, 19: 24 hours: Changed polygon compiler:
   400 seconds for extract mosobl.poly
   OOM when extracting Russia from russia.osm
 Feb, 19: 1 hour: Created much more memory-optimal set for integer (bitset)
+Feb, 20: 2 hours: Added write bufferisation. 
+  Fixed processing large files (eg. cur russia.poly from russia.osm)
+  Cutting russia.poly from russia.osm last 11 minutes;
+  Cutting mosobl.poly from russia.osm last 9 minutes;
+
+Possible optimizations:
+  Parser rewrite: specialized parser could greatly improve performance
+  Polygon compiler optimization: Current version does't support some geotree optimization
+
+Repository URL: http://github.com/partizan/osm-cut

@@ -31,7 +31,7 @@ parse(SourceFile) ->
     erlsom:parse_sax(<<>>, #event_state{}, fun sax_callback/2,
                      [{continuation_function, fun continuation_reader/2, File}]),
     End = erlang:now(),
-    io:format("Parse time: ~p~n", [timer:now_diff(End, Start)]).
+    io:format("Parse time: ~p seconds~n", [timer:now_diff(End, Start) div 1000000]).
 
 
 %%--------------------------------------------------------------------
