@@ -18,6 +18,11 @@
 
 -include("types.hrl").
 
+%%--------------------------------------------------------------------
+%% @doc Parses source OSM file
+%% @spec parse(string()) -> any()
+%% @end
+%%--------------------------------------------------------------------
 -spec(parse(string()) -> any()).
 parse(SourceFile) ->
     Start = erlang:now(),
@@ -29,6 +34,12 @@ parse(SourceFile) ->
     io:format("Parse time: ~p~n", [timer:now_diff(End, Start)]).
 
 
+%%--------------------------------------------------------------------
+%% @doc Parses source OSM file
+%% @spec continuation_reader(binary(), any()) -> {binary(), any()}
+%% @end
+%%--------------------------------------------------------------------
+-spec(continuation_reader(binary(), any()) -> {binary(), any()}).
 continuation_reader(Tail, File) ->
     case file:read(File, 100000) of
         {ok, Data} ->
@@ -36,6 +47,12 @@ continuation_reader(Tail, File) ->
         eof -> {Tail, File}
     end.
 
+%%--------------------------------------------------------------------
+%% @doc Handles SAX events
+%% @spec sax_callback(atom() | tuple(), #event_state{}) -> #event_state{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(sax_callback(atom() | tuple(), #event_state{}) -> #event_state{}).
 sax_callback(startDocument, State) ->
     State#event_state{level=0};
 
@@ -88,6 +105,12 @@ sax_callback(Event, State) ->
     io:format("Unprocessed: ~p~n    ~p~n", [Event, State]),
     State.
 
+%%--------------------------------------------------------------------
+%% @doc Processes collected OSM element
+%% @spec process_element(simple_xml_tag(), #event_state{}) -> #event_state{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(process_element(simple_xml_tag() | endDocument, #event_state{}) -> #event_state{}).
 process_element({osm, _, _} = Element, #event_state{processor_state = ProcessorState} = State) ->
     NewProcState = osm_processor:process(Element, ProcessorState),
     State#event_state{processor_state = NewProcState};
@@ -128,6 +151,11 @@ process_element(Element, State) ->
     io:format("Unprocessed element: ~p~n", [Element]),
     State.
 
+%%--------------------------------------------------------------------
+%% @doc Splits list of way element children to members and tags
+%% @spec classified_way_children(simple_xml_tags()) -> {list(integer()), simple_xml_tags()}
+%% @end
+%%--------------------------------------------------------------------
 -spec(classified_way_children(simple_xml_tags()) -> {list(integer()), simple_xml_tags()}).
 classified_way_children(Children) ->
     classified_way_children(Children, [], []).
@@ -143,6 +171,11 @@ classified_way_children([Other | Children], RefNodes, OtherChildren) ->
 classified_way_children([], RefNodes, OtherChildren) ->
     {RefNodes, OtherChildren}.
 
+%%--------------------------------------------------------------------
+%% @doc Splits list of relation element children
+%% @spec classified_relation_children(simple_xml_tags()) -> {members(), simple_xml_tags()}
+%% @end
+%%--------------------------------------------------------------------
 -spec(classified_relation_children(simple_xml_tags()) -> {members(), simple_xml_tags()}).
 classified_relation_children(Children) ->
     classified_relation_children(Children, [], []).
@@ -162,6 +195,11 @@ classified_relation_children([Other | Children], RefNodes, OtherChildren) ->
 classified_relation_children([], RefNodes, OtherChildren) ->
     {RefNodes, OtherChildren}.
 
+%%--------------------------------------------------------------------
+%% @doc Encodes tags to compact representation
+%% @spec encoded_tags(simple_xml_tags()) -> tags()
+%% @end
+%%--------------------------------------------------------------------
 -spec(encoded_tags(simple_xml_tags()) -> tags()).
 encoded_tags(List) ->
     encoded_tags(List, []).
@@ -175,12 +213,23 @@ encoded_tags([{tag, Attributes, []} | Tail], List) ->
 encoded_tags([], List) ->
     List.
 
+%%--------------------------------------------------------------------
+%% @doc Converts collected Erlsom's messages to simple XML representation
+%% @spec simple_xml(tuple(), list(simple_xml_tag)) -> simple_xml_tag()
+%% @end
+%%--------------------------------------------------------------------
 -spec(simple_xml(tuple(), list(simple_xml_tag)) -> simple_xml_tag()).
 simple_xml({startElement, _, Tag, _, Attributes}, Children) ->
     {list_to_atom(Tag), % Risky, but fast
      lists:map(fun({attribute, Name, _, _, Value}) -> {list_to_atom(Name), Value} end, Attributes),
      Children}.
 
+%%--------------------------------------------------------------------
+%% @doc Stores node element's attributes to record's fields
+%% @spec populate_node_attributes(#node{}, attributes()) -> #node{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(populate_node_attributes(#node{}, attributes()) -> #node{}).
 populate_node_attributes(#node{} = Node, [{lon, Lon} | Tail]) ->
     populate_node_attributes(Node#node{x = osm_utils:to_float(Lon)}, Tail);
 
@@ -213,6 +262,12 @@ populate_node_attributes(#node{} = Node, [Attr | Tail]) ->
 populate_node_attributes(#node{} = Node, []) ->
     Node.
 
+%%--------------------------------------------------------------------
+%% @doc Stores way element's attributes to record's fields
+%% @spec populate_way_attributes(#way{}, attributes()) -> #way{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(populate_way_attributes(#way{}, attributes()) -> #way{}).
 populate_way_attributes(#way{} = Way, [{id, Id} | Tail]) ->
     populate_way_attributes(Way#way{id = list_to_integer(Id)}, Tail);
 
@@ -238,6 +293,12 @@ populate_way_attributes(#way{} = Way, [Attr | Tail]) ->
 populate_way_attributes(#way{} = Way, []) ->
     Way.
 
+%%--------------------------------------------------------------------
+%% @doc Stores relation element's attributes to record's fields
+%% @spec populate_relation_attributes(#relation{}, attributes()) -> #relation{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(populate_relation_attributes(#relation{}, attributes()) -> #relation{}).
 populate_relation_attributes(#relation{} = Relation, [{id, Id} | Tail]) ->
     populate_relation_attributes(Relation#relation{id = list_to_integer(Id)}, Tail);
 
