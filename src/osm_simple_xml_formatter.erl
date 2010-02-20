@@ -20,7 +20,7 @@
 %%--------------------------------------------------------------------
 -spec(open_to_write(string()) -> {error, atom()} | {ok, fd()}).
 open_to_write(FileName) ->
-    case file:open(FileName, [write, raw, {delayed_write, 1024000, 2000}]) of
+    case file:open(FileName, [write, raw]) of
         {ok, Handle} = Return ->
             file:write(Handle, ["<?xml version=\"1.0\"?>"]),
             Return;

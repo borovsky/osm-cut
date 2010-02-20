@@ -13,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, synchronize/0, close/0, write/1, processing_result/0]).
+-export([start_link/1, synchronize/1, init_client/0, write/2, processing_result/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -23,40 +23,70 @@
 
 -record(state, {out_file, buffer, buffer_size}).
 
+-record(writer_buffer, {
+          buffer_size = 0 :: non_neg_integer(),
+          buffer = [] :: list(source_element())
+         }).
+-define(WRITING_SIZE, 1000).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @doc Close output file
-%% @spec close() -> any()
+%% @doc Initializes writer's client structure
+%% @spec init_client() -> #writer_buffer{}
 %% @end
 %%--------------------------------------------------------------------
--spec(close() -> any()).
-close() ->
-    gen_server:call(?SERVER, close).
+-spec(init_client() -> #writer_buffer{}).
+init_client() ->
+    #writer_buffer{}.
+
+%%--------------------------------------------------------------------
+%% @doc Close output file
+%% @spec close(#writer_buffer{}) -> any()
+%% @end
+%%--------------------------------------------------------------------
+-spec(close(#writer_buffer{}) -> #writer_buffer{}).
+close(State) ->
+    R = synchronize(State),
+    gen_server:call(?SERVER, close, infinity),
+    R.
 
 %%--------------------------------------------------------------------
 %% @doc Ping to write server (for avoid message queue overflow)
-%% @spec synchronize() -> any()
+%% @spec synchronize(#writer_buffer{}) -> any()
 %% @end
 %%--------------------------------------------------------------------
--spec(synchronize() -> any()).
-synchronize() ->
-    gen_server:call(?SERVER, ping).
+-spec(synchronize(#writer_buffer{}) -> #writer_buffer{}).
+synchronize(#writer_buffer{buffer = Buffer}) ->
+    gen_server:abcast(?SERVER, Buffer), % We send reversed buffer, map will reverse it
+    gen_server:call(?SERVER, ping, infinity),
+    #writer_buffer{}.
 
 %%--------------------------------------------------------------------
 %% @doc Writes OSM element to output stream
-%% @spec write(source_element()) -> any()
+%% @spec write(#writer_buffer{}, source_element()) -> #writer_buffer{}
 %% @end
 %%--------------------------------------------------------------------
--spec(write(source_element()) -> any()).
-write(endDocument) ->
-    gen_server:abcast(?SERVER, endDocument),
-    gen_server:call(?SERVER, close);
+-spec(write(#writer_buffer{}, source_element()) -> #writer_buffer{}).
+write(State, endDocument) ->
+    B1 = do_write(State, endDocument),
+    close(B1);
 
-write(Data) ->
-    gen_server:abcast(?SERVER, Data).
+write(State, Data) ->
+    do_write(State, Data).
+
+do_write(#writer_buffer{buffer_size = BufferSize,
+                        buffer = Buffer} = Buf, Node) ->
+    case BufferSize of
+        ?WRITING_SIZE ->
+            gen_server:abcast(?SERVER, [Node | Buffer]),
+            #writer_buffer{};
+        _ ->
+            Buf#writer_buffer{buffer = [Node | Buffer], buffer_size = BufferSize + 1}
+    end.
+
 
 %%--------------------------------------------------------------------
 %% @doc Returns processing result
@@ -94,9 +124,9 @@ start_link(Options) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init(list(string)) -> {ok, #state{}}).
+-spec(init(list(string())) -> {ok, #state{}}).
 init([OutputFile]) ->
-    {ok, File} = file:open(OutputFile, [write, raw]),
+    {ok, File} = osm_simple_xml_formatter:open_to_write(OutputFile),
     {ok, #state{out_file = File}}.
 
 %%--------------------------------------------------------------------
@@ -135,9 +165,9 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_cast(source_element(), #state{}) -> {noreply, #state{}}).
+-spec(handle_cast(list(source_element()), #state{}) -> {noreply, #state{}}).
 handle_cast(Msg, #state{out_file = OutFile} = State) ->
-    Xml = xml_for_element(Msg),
+    Xml = lists:foldl(fun(M, S) -> [xml_for_element(M), S] end, [], Msg),
     file:write(OutFile, Xml),
     {noreply, State}.
 

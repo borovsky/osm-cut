@@ -1,12 +1,27 @@
 Name: Alexander Borovsky
 Task: geo
-Level: 2
+Level: 4
 Language: Erlang
 Work: 9
 Duration: 3
 
 Time Sheet:
 2 weeks of planing and writing prototypes (only simple_xml_writer module used from them)
-4 hours for 1 level (with basic tests)
-4 hours for docs and test
-1 hour - Level 2 polygon generator
+Jan, 12: 4 hours for 1 level (with basic tests)
+Jan, 21: 4 hours for docs and test
+Jan, 28: 2 hours - Level 2 polygon compiler
+  Standard ray trace (send almost horizontal ray to left. 
+    If cross polygon's vertex, assume that ray passed upper.
+    Only one optimization: bounding box
+Feb,  4: 6 hours for "complete objects" functionality. 
+  OOM on "russia.osm"
+Feb,  5: 3 hours: created external node storage, 
+  Level 4 done with 15 minutes for moskow state.
+Feb, 10: 2 hours: optimized transport data structures
+  Temp file size reduced in 2 times.
+  Extracting mosobl.poly last 10 minutes.
+Feb, 19: 24 hours: Changed polygon compiler: 
+  Used geotree optimization for increase node check speed
+  400 seconds for extract mosobl.poly
+  OOM when extracting Russia from russia.osm
+Feb, 19: 1 hour: Created much more memory-optimal set for integer (bitset)

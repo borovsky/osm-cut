@@ -323,7 +323,6 @@ geotree_for(#geotree_compile_data{bbox = #bounding_box{
                                   in = In} = Data) ->
     case length(In) =< ?MAX_INT_INTERVALS_PER_LEAF of
         true -> % Too small count of intervals inside, so creating leaf
-            io:format(string:copies("?", 1 bsl (?MAX_TREE_LEVEL - Data#geotree_compile_data.level))),
             geotree_leaf_for(Data);
         false -> % Let's split this branch to 4 subbranches
             Xs = (Xmin + Xmax) / 2,

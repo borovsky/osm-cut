@@ -13,7 +13,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, synchronize/0, close/0, write/1, processing_result/0]).
+-export([start_link/1, synchronize/1, close/0, write/2, processing_result/0, init_client/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -26,6 +26,15 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc Initializes writer's client structure
+%% @spec init_client() -> #writer_buffer{}
+%% @end
+%%--------------------------------------------------------------------
+-spec(init_client() -> ok).
+init_client() ->
+    ok.
 
 %%--------------------------------------------------------------------
 %% @doc Close output file
@@ -41,8 +50,8 @@ close() ->
 %% @spec synchronize() -> any()
 %% @end
 %%--------------------------------------------------------------------
--spec(synchronize() -> any()).
-synchronize() ->
+-spec(synchronize(any()) -> any()).
+synchronize(_) ->
     gen_server:call(?SERVER, ping).
 
 %%--------------------------------------------------------------------
@@ -50,12 +59,12 @@ synchronize() ->
 %% @spec write(source_element()) -> any()
 %% @end
 %%--------------------------------------------------------------------
--spec(write(source_element()) -> any()).
-write(endDocument) ->
+-spec(write(any(), source_element()) -> any()).
+write(_, endDocument) ->
     gen_server:abcast(?SERVER, endDocument),
     gen_server:call(?SERVER, close);
 
-write(Data) ->
+write(_, Data) ->
     gen_server:abcast(?SERVER, Data).
 
 %%--------------------------------------------------------------------

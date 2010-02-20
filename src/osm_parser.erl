@@ -92,6 +92,10 @@ process_element({osm, _, _} = Element, #event_state{processor_state = ProcessorS
     NewProcState = osm_processor:process(Element, ProcessorState),
     State#event_state{processor_state = NewProcState};
 
+% Ignore bound element
+process_element({bound, _, _}, #event_state{} = State) ->
+    State;
+
 process_element({node, Attributes, Children},
                 #event_state{processor_state = ProcessorState} = State) ->
     Node = populate_node_attributes(#node{tags = encoded_tags(Children)}, Attributes),

@@ -18,7 +18,8 @@
 -record(state, {
           polygon_function,
           reduced_set,
-          writer_module
+          writer_module,
+          write_buffer
          }).
 
 %%%===================================================================
@@ -31,8 +32,10 @@ init(Options) ->
     WriterModule = proplists:get_value(writer_module, Options, osm_writer),
     
     #state{polygon_function = PolygonFunction,
-                reduced_set = gb_sets:new(),
-                writer_module=WriterModule}.
+           reduced_set = gb_sets:new(),
+           writer_module=WriterModule,
+           write_buffer = WriterModule:init_client()
+          }.
 
 
 %%--------------------------------------------------------------------
@@ -42,41 +45,52 @@ init(Options) ->
 %%--------------------------------------------------------------------
 -spec(process_message(source_element(), #state{}) -> #state{}).
 %% start element
-process_message({osm, _Attributes, []} = Element, #state{writer_module=Writer} = State) ->
-    Writer:write(Element),
+process_message({osm, _Attributes, []} = Element, #state{writer_module = Writer,
+                                                         write_buffer = WriteBuffer} = State) ->
+    Writer:write(WriteBuffer, Element),
     State;
 
 %% end element
-process_message(endDocument, #state{writer_module=Writer} = State) ->
-    Writer:write(endDocument),
+process_message(endDocument, #state{writer_module=Writer,
+                                    write_buffer = WriteBuffer} = State) ->
+    Writer:write(WriteBuffer, endDocument),
     State;
 
 % node element
-process_message(#node{id = Id, x = X, y = Y} = Element, #state{polygon_function = PolygonFunction,
-         reduced_set = Set, writer_module = Writer} = State) ->
+process_message(#node{id = Id, x = X, y = Y} = Element,
+                #state{polygon_function = PolygonFunction,
+                       reduced_set = Set,
+                       writer_module = Writer,
+                       write_buffer = WriteBuffer} = State) ->
     case PolygonFunction(X, Y) of
         true ->
             NewSet = gb_sets:add({node, Id}, Set),
-            Writer:write(Element),
+            Writer:write(WriteBuffer, Element),
             State#state{reduced_set = NewSet};
         _ ->
             State
     end;
 
 %%way element
-process_message(#way{id = Id, nodes = Nodes} = Way, #state{reduced_set = Set, writer_module = Writer} = State) ->
+process_message(#way{id = Id, nodes = Nodes} = Way,
+                #state{reduced_set = Set,
+                       writer_module = Writer,
+                       write_buffer = WriteBuffer} = State) ->
     NodesInPolygon = lists:filter(fun(E) -> gb_sets:is_member({node, E}, Set) end, Nodes),
     case NodesInPolygon of
         [] ->
             State;
         List ->
             NewSet = gb_sets:add({way, Id}, Set),
-            Writer:write(Way#way{nodes = List}),
+            Writer:write(WriteBuffer, Way#way{nodes = List}),
             State#state{reduced_set = NewSet}
     end;
 
 %% relation element
-process_message(#relation{id = Id, members = Members} = Relation, #state{reduced_set = Set, writer_module = Writer} = State) ->
+process_message(#relation{id = Id, members = Members} = Relation,
+                #state{reduced_set = Set,
+                       writer_module = Writer,
+                       write_buffer = WriteBuffer} = State) ->
     MembersInPolygon =
         lists:filter(fun({Type, MemberId, _}) ->
                              gb_sets:is_member({Type, MemberId}, Set) end,
@@ -86,7 +100,7 @@ process_message(#relation{id = Id, members = Members} = Relation, #state{reduced
             State;
         List ->
             NewSet = gb_sets:add({relation, Id}, Set),
-            Writer:write(Relation#relation{members =  List}),
+            Writer:write(WriteBuffer, Relation#relation{members =  List}),
             State#state{reduced_set = NewSet}
     end;
 

@@ -35,7 +35,7 @@
           sends_count = 0:: non_neg_integer()
          }).
 -define(PROCESSING_SIZE, 1000).
--define(SENDS_BETWEEN_SYNC, 10).
+-define(SENDS_BETWEEN_SYNC, 1).
 
 %%%===================================================================
 %%% API
@@ -64,9 +64,7 @@ process(Node, #processor_buffer{buffer_size = BufferSize,
             ToSend = lists:reverse([Node | Buffer]),
             case SendsCount of %We should synchronize sometimes for avoid message query overflow
                 ?SENDS_BETWEEN_SYNC ->
-                    gen_server:call(?SERVER, ping, infinity),
-                    gen_server:abcast(?SERVER, ToSend),
-                    #processor_buffer{};
+                    synchronize(Buf);
                 _ ->
                     gen_server:abcast(?SERVER, ToSend),
                     #processor_buffer{sends_count = SendsCount + 1}
@@ -84,7 +82,7 @@ process(Node, #processor_buffer{buffer_size = BufferSize,
 synchronize(#processor_buffer{buffer = Buffer}) ->
     gen_server:abcast(?SERVER, lists:reverse(Buffer)),
     gen_server:call(?SERVER, ping, infinity),
-    #processor_buffer{}.
+    #processor_buffer{}.    
 
 
 %%--------------------------------------------------------------------
@@ -157,8 +155,7 @@ init(Options) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(handle_call(ping, pid(), #state{}) -> {reply, pong, #state{}}).
-handle_call(ping, _From, #state{writer_module = Writer} = State) ->
-    Writer:synchronize(),
+handle_call(ping, _From, #state{} = State) ->
     {reply, pong, State};
 
 handle_call(_Request, _From, State) ->
@@ -178,7 +175,9 @@ handle_call(_Request, _From, State) ->
 -spec(handle_cast(list(source_element()), #state{}) -> {noreply, #state{}}).
 handle_cast(Msg, #state{processor_module = ProcessorModule,
                         processor_state = ProcessorState} = State) ->
-    NewState = lists:foldl(fun(E, S) -> ProcessorModule:process_message(E, S) end,
+    NewState = lists:foldl(fun(E, S) ->
+                                   ProcessorModule:process_message(E, S)
+                           end,
                            ProcessorState,
                            Msg),
     {noreply, State#state{processor_state = NewState}}.
